@@ -1,0 +1,731 @@
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { useListApplications, getListApplicationsQueryKey, useCreateJob, useListJobs, getListJobsQueryKey } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import {
+  CheckCircle2, XCircle, LogOut, FileText, Lock, BarChart2,
+  Users, Briefcase, TrendingUp, Euro, ClipboardList, Activity
+} from "lucide-react";
+import { useAuth, authHeaders } from "@/lib/auth";
+import { Link } from "wouter";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, Legend,
+} from "recharts";
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+const jobSchema = z.object({
+  title: z.string().min(3),
+  category: z.string().min(2),
+  location: z.string().min(2),
+  type: z.string().min(2),
+  description: z.string().min(10),
+  requirements: z.string().min(10),
+  salary: z.string().min(2),
+  benefits: z.string().optional(),
+});
+
+interface WorkPermit {
+  id: number; reference_number: string; first_name: string; last_name: string;
+  email: string; permit_type: string; employer_name: string; employer_country: string;
+  job_title: string; status: string; payment_status: string; created_at: string;
+}
+
+interface PaymentReceipt {
+  id: number; reference_number: string; first_name: string; last_name: string; email: string;
+  job_title: string; employer_name: string; employer_country: string; status: string;
+  payment_status: string; payment_method: string | null; receipt_url: string | null;
+  receipt_filename: string | null; receipt_uploaded_at: string | null;
+  payment_reviewed_at: string | null; payment_rejection_reason: string | null; created_at: string;
+}
+
+interface AdminStats {
+  applications: { total: number; pending: number; approved: number; rejected: number; approvalRate: number };
+  workPermits: { total: number; submitted: number; paymentConfirmed: number; approved: number; rejected: number; paidCount: number; revenue: number };
+  charts: {
+    applicationsByDay: { day: string; applications: number }[];
+    byCategory: { category: string; count: number }[];
+    byCountry: { country: string; count: number }[];
+    registrationsByDay: { day: string; signups: number }[];
+  };
+  recentActivity: { type: string; name: string; status: string; createdAt: string }[];
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const PIE_COLORS = ["#1a2744", "#d4a029", "#16a34a", "#dc2626", "#6366f1", "#0ea5e9"];
+
+const statusVariant = (s: string) => {
+  if (s === "approved") return "default";
+  if (s === "rejected") return "destructive";
+  return "outline";
+};
+
+function StatCard({ icon, label, value, sub, color = "primary" }: {
+  icon: React.ReactNode; label: string; value: string | number; sub?: string; color?: string;
+}) {
+  return (
+    <div className="bg-card border rounded-xl p-5 flex items-start gap-4">
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+        color === "green" ? "bg-green-100 text-green-600" :
+        color === "yellow" ? "bg-yellow-100 text-yellow-700" :
+        color === "red" ? "bg-red-100 text-red-600" :
+        color === "blue" ? "bg-blue-100 text-blue-600" :
+        "bg-primary/10 text-primary"
+      }`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="text-2xl font-bold text-primary">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+export default function Admin() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+  const { user, logout, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState("statistics");
+
+  // applications
+  const [actionApp, setActionApp] = useState<{ id: number; name: string; action: "approve" | "reject"; jobTitle: string } | null>(null);
+  const [actionNotes, setActionNotes] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // work permits
+  const [workPermits, setWorkPermits] = useState<WorkPermit[]>([]);
+  const [wpLoading, setWpLoading] = useState(false);
+  const [wpLoaded, setWpLoaded] = useState(false);
+
+  // payment receipts
+  const [payments, setPayments] = useState<PaymentReceipt[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+  const [rejectPayment, setRejectPayment] = useState<PaymentReceipt | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [paymentActionLoading, setPaymentActionLoading] = useState(false);
+
+  // statistics
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // ── Not logged in guard ───────────────────────────────────────────────────
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex items-center justify-center px-4">
+        <div className="bg-card border rounded-xl shadow-md p-10 max-w-md w-full text-center">
+          <div className="flex items-center justify-center w-14 h-14 bg-primary/10 rounded-full mx-auto mb-4">
+            <Lock className="w-7 h-7 text-primary" />
+          </div>
+          <h2 className="text-2xl font-bold text-primary mb-2">Admin Access Required</h2>
+          <p className="text-muted-foreground mb-6">Please sign in with your admin credentials.</p>
+          <Button asChild className="w-full"><Link href="/admin/login">Go to Admin Login</Link></Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Data hooks (only when admin) ──────────────────────────────────────────
+  const { data: applications, isLoading: appsLoading } = useListApplications({
+    query: { queryKey: getListApplicationsQueryKey() }
+  });
+  const { data: jobs, isLoading: jobsLoading } = useListJobs(undefined, {
+    query: { queryKey: getListJobsQueryKey() }
+  });
+  const createJob = useCreateJob();
+  const form = useForm<z.infer<typeof jobSchema>>({
+    resolver: zodResolver(jobSchema),
+    defaultValues: { title: "", category: "", location: "", type: "Full-time", description: "", requirements: "", salary: "", benefits: "" },
+  });
+
+  // ── Load stats on mount ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    loadStats();
+  }, [user]);
+
+  async function loadStats() {
+    if (!user) return;
+    setStatsLoading(true);
+    try {
+      const res = await fetch("/api/admin/stats", { headers: authHeaders(user.token) });
+      if (res.ok) setStats(await res.json());
+    } finally {
+      setStatsLoading(false);
+    }
+  }
+
+  async function loadWorkPermits() {
+    if (wpLoaded || !user) return;
+    setWpLoading(true);
+    try {
+      const res = await fetch("/api/admin/work-permits", { headers: authHeaders(user.token) });
+      if (res.ok) { setWorkPermits(await res.json()); setWpLoaded(true); }
+    } finally { setWpLoading(false); }
+  }
+
+  function onSubmit(values: z.infer<typeof jobSchema>) {
+    createJob.mutate({ data: values }, {
+      onSuccess: () => {
+        toast({ title: "Job Created", description: "Published successfully." });
+        form.reset();
+        queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        setActiveTab("jobs");
+        loadStats();
+      },
+      onError: () => toast({ title: "Error", description: "Failed to create job listing.", variant: "destructive" }),
+    });
+  }
+
+  async function handleApproveReject() {
+    if (!actionApp || !user) return;
+    setActionLoading(true);
+    const isApprove = actionApp.action === "approve";
+    try {
+      const res = await fetch(`/api/admin/applications/${actionApp.id}/${actionApp.action}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
+        body: JSON.stringify(isApprove ? { notes: actionNotes } : { reason: actionNotes }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: "Error", description: data.error, variant: "destructive" }); return; }
+      toast({
+        title: isApprove ? "Application Approved" : "Application Rejected",
+        description: isApprove ? "Offer letter sent via email." : "Rejection email sent.",
+      });
+      queryClient.invalidateQueries({ queryKey: getListApplicationsQueryKey() });
+      setActionApp(null);
+      setActionNotes("");
+      loadStats();
+    } finally { setActionLoading(false); }
+  }
+
+  async function loadPayments() {
+    if (paymentsLoaded || !user) return;
+    setPaymentsLoading(true);
+    try {
+      const res = await fetch("/api/admin/payments", { headers: authHeaders(user.token) });
+      if (res.ok) { setPayments(await res.json()); setPaymentsLoaded(true); }
+    } finally { setPaymentsLoading(false); }
+  }
+
+  async function handlePaymentApprove(id: number) {
+    if (!user) return;
+    setPaymentActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/payments/${id}/approve`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
+      });
+      if (res.ok) {
+        toast({ title: "Payment Approved", description: "Applicant has been notified by email." });
+        setPayments(prev => prev.map(p => p.id === id ? { ...p, payment_status: "paid", payment_reviewed_at: new Date().toISOString() } : p));
+        loadStats();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: data.error || "Failed to approve payment", variant: "destructive" });
+      }
+    } finally { setPaymentActionLoading(false); }
+  }
+
+  async function handlePaymentReject() {
+    if (!rejectPayment || !user) return;
+    setPaymentActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/payments/${rejectPayment.id}/reject`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
+        body: JSON.stringify({ reason: rejectReason }),
+      });
+      if (res.ok) {
+        toast({ title: "Payment Rejected", description: "Applicant has been notified by email." });
+        setPayments(prev => prev.map(p => p.id === rejectPayment.id ? { ...p, payment_status: "rejected", payment_rejection_reason: rejectReason } : p));
+        setRejectPayment(null);
+        setRejectReason("");
+        loadStats();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: data.error || "Failed to reject payment", variant: "destructive" });
+      }
+    } finally { setPaymentActionLoading(false); }
+  }
+
+  async function handleWpAction(id: number, action: "approve" | "reject") {
+    if (!user) return;
+    const res = await fetch(`/api/admin/work-permits/${id}/${action}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
+      body: JSON.stringify({}),
+    });
+    if (res.ok) {
+      toast({ title: action === "approve" ? "Work Permit Approved" : "Work Permit Rejected" });
+      setWorkPermits(prev => prev.map(wp => wp.id === id ? { ...wp, status: action === "approve" ? "approved" : "rejected" } : wp));
+      loadStats();
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div className="container mx-auto px-4 md:px-8 py-12">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-serif font-bold text-primary">Admin Dashboard</h1>
+        <Button variant="outline" size="sm" onClick={() => { logout(); navigate("/"); }}>
+          <LogOut className="w-4 h-4 mr-2" /> Sign Out
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={(v) => {
+        setActiveTab(v);
+        if (v === "work-permits") loadWorkPermits();
+        if (v === "payments") loadPayments();
+        if (v === "statistics") loadStats();
+      }}>
+        <TabsList className="mb-8 flex-wrap h-auto">
+          <TabsTrigger value="statistics"><BarChart2 className="w-4 h-4 mr-1.5" />Statistics</TabsTrigger>
+          <TabsTrigger value="applications">Applications</TabsTrigger>
+          <TabsTrigger value="work-permits">Work Permits</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="jobs">Manage Jobs</TabsTrigger>
+          <TabsTrigger value="create">Post New Job</TabsTrigger>
+        </TabsList>
+
+        {/* ── Statistics Tab ────────────────────────────────────────────── */}
+        <TabsContent value="statistics">
+          {statsLoading || !stats ? (
+            <div className="flex items-center justify-center py-24 text-muted-foreground">
+              <Activity className="w-5 h-5 mr-2 animate-pulse" /> Loading statistics…
+            </div>
+          ) : (
+            <div className="space-y-8">
+
+              {/* KPI cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard icon={<ClipboardList className="w-5 h-5" />} label="Total Applications" value={stats.applications.total} sub={`${stats.applications.pending} pending`} />
+                <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Approval Rate" value={`${stats.applications.approvalRate}%`} sub={`${stats.applications.approved} approved`} color="green" />
+                <StatCard icon={<FileText className="w-5 h-5" />} label="Work Permits" value={stats.workPermits.total} sub={`${stats.workPermits.paidCount} paid`} color="blue" />
+                <StatCard icon={<Euro className="w-5 h-5" />} label="Permit Revenue" value={`€${stats.workPermits.revenue}`} sub={`${stats.workPermits.paidCount} × €99`} color="yellow" />
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard icon={<CheckCircle2 className="w-5 h-5" />} label="Approved" value={stats.applications.approved} color="green" />
+                <StatCard icon={<XCircle className="w-5 h-5" />} label="Rejected" value={stats.applications.rejected} color="red" />
+                <StatCard icon={<Users className="w-5 h-5" />} label="Permits Approved" value={stats.workPermits.approved} color="green" />
+                <StatCard icon={<Briefcase className="w-5 h-5" />} label="Pending Payment" value={stats.workPermits.submitted} color="yellow" />
+              </div>
+
+              {/* Charts row 1 */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* Application status pie */}
+                <div className="bg-card border rounded-xl p-6">
+                  <h3 className="font-semibold text-primary mb-4">Application Status</h3>
+                  {stats.applications.total === 0 ? (
+                    <div className="flex items-center justify-center h-44 text-muted-foreground text-sm">No data yet</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Pending",  value: stats.applications.pending },
+                            { name: "Approved", value: stats.applications.approved },
+                            { name: "Rejected", value: stats.applications.rejected },
+                          ].filter(d => d.value > 0)}
+                          cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                          dataKey="value" nameKey="name"
+                        >
+                          {["#d4a029", "#16a34a", "#dc2626"].map((c, i) => (
+                            <Cell key={i} fill={c} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => [v, ""]} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+
+                {/* Applications by category */}
+                <div className="bg-card border rounded-xl p-6 lg:col-span-2">
+                  <h3 className="font-semibold text-primary mb-4">Applications by Category</h3>
+                  {stats.charts.byCategory.length === 0 ? (
+                    <div className="flex items-center justify-center h-44 text-muted-foreground text-sm">No data yet</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={stats.charts.byCategory} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="category" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="count" name="Applications" fill="#1a2744" radius={[4, 4, 0, 0]}>
+                          {stats.charts.byCategory.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              {/* Charts row 2 */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                {/* Applications over time */}
+                <div className="bg-card border rounded-xl p-6">
+                  <h3 className="font-semibold text-primary mb-1">Applications — Last 30 Days</h3>
+                  <p className="text-xs text-muted-foreground mb-4">Daily application volume</p>
+                  {stats.charts.applicationsByDay.length === 0 ? (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">No recent applications</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={stats.charts.applicationsByDay} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="day" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="applications" stroke="#d4a029" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+
+                {/* Work permits by country */}
+                <div className="bg-card border rounded-xl p-6">
+                  <h3 className="font-semibold text-primary mb-1">Work Permits by Country</h3>
+                  <p className="text-xs text-muted-foreground mb-4">Employer country distribution</p>
+                  {stats.charts.byCountry.length === 0 ? (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">No work permits yet</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={stats.charts.byCountry} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <YAxis dataKey="country" type="category" tick={{ fontSize: 11 }} width={60} />
+                        <Tooltip />
+                        <Bar dataKey="count" name="Permits" fill="#1a2744" radius={[0, 4, 4, 0]}>
+                          {stats.charts.byCountry.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              {/* Recent activity */}
+              <div className="bg-card border rounded-xl p-6">
+                <h3 className="font-semibold text-primary mb-4 flex items-center gap-2">
+                  <Activity className="w-4 h-4" /> Recent Activity
+                </h3>
+                {stats.recentActivity.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No recent activity.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {stats.recentActivity.map((item, i) => (
+                      <div key={i} className="flex items-center gap-3 text-sm">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                          item.status === "approved" ? "bg-green-500" :
+                          item.status === "rejected" ? "bg-red-500" :
+                          item.status === "payment_confirmed" ? "bg-blue-500" : "bg-yellow-500"
+                        }`} />
+                        <span className="font-medium">{item.name}</span>
+                        <Badge variant="outline" className="text-xs capitalize h-5 px-1.5">
+                          {item.type === "work_permit" ? "Work Permit" : "Application"}
+                        </Badge>
+                        <Badge variant={statusVariant(item.status)} className="text-xs capitalize h-5 px-1.5">
+                          {item.status.replace("_", " ")}
+                        </Badge>
+                        <span className="ml-auto text-muted-foreground text-xs whitespace-nowrap">
+                          {format(new Date(item.createdAt), "MMM d, HH:mm")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Applications Tab ──────────────────────────────────────────── */}
+        <TabsContent value="applications">
+          <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Job</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {appsLoading ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8">Loading…</TableCell></TableRow>
+                ) : applications && applications.length > 0 ? (
+                  applications.map((app) => (
+                    <TableRow key={app.id}>
+                      <TableCell className="font-medium">{app.firstName} {app.lastName}</TableCell>
+                      <TableCell>{app.jobId === 0 ? <Badge variant="secondary">General</Badge> : `Job #${app.jobId}`}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">{app.email}</div>
+                        <div className="text-xs text-muted-foreground">{app.phone}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(app.status)} className="capitalize">{app.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {format(new Date(app.createdAt), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        {app.status === "pending" && (
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="text-green-600 border-green-200 hover:bg-green-50"
+                              onClick={() => { setActionApp({ id: app.id, name: `${app.firstName} ${app.lastName}`, action: "approve", jobTitle: `Job #${app.jobId}` }); setActionNotes(""); }}>
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Approve
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50"
+                              onClick={() => { setActionApp({ id: app.id, name: `${app.firstName} ${app.lastName}`, action: "reject", jobTitle: `Job #${app.jobId}` }); setActionNotes(""); }}>
+                              <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No applications found.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* ── Work Permits Tab ──────────────────────────────────────────── */}
+        <TabsContent value="work-permits">
+          <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Job / Employer</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {wpLoading ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8">Loading…</TableCell></TableRow>
+                ) : workPermits.length > 0 ? (
+                  workPermits.map((wp) => (
+                    <TableRow key={wp.id}>
+                      <TableCell className="font-mono text-xs">{wp.reference_number}</TableCell>
+                      <TableCell>
+                        <div className="font-medium text-sm">{wp.first_name} {wp.last_name}</div>
+                        <div className="text-xs text-muted-foreground">{wp.email}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{wp.job_title}</div>
+                        <div className="text-xs text-muted-foreground">{wp.employer_name}, {wp.employer_country}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={wp.payment_status === "paid" ? "default" : "outline"} className="text-xs capitalize">
+                          {wp.payment_status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusVariant(wp.status)} className="capitalize text-xs">{wp.status.replace("_", " ")}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{format(new Date(wp.created_at), "MMM d, yyyy")}</TableCell>
+                      <TableCell>
+                        {(wp.status === "submitted" || wp.status === "payment_confirmed") && (
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="text-green-600 border-green-200 hover:bg-green-50"
+                              onClick={() => handleWpAction(wp.id, "approve")}>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50"
+                              onClick={() => handleWpAction(wp.id, "reject")}>
+                              <XCircle className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    {wpLoaded ? "No work permit applications." : "Loading…"}
+                  </TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* ── Jobs Tab ──────────────────────────────────────────────────── */}
+        <TabsContent value="jobs">
+          <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Category & Location</TableHead>
+                  <TableHead>Type & Salary</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobsLoading ? (
+                  <TableRow><TableCell colSpan={4} className="text-center py-8">Loading…</TableCell></TableRow>
+                ) : jobs && jobs.length > 0 ? (
+                  jobs.map((job) => (
+                    <TableRow key={job.id}>
+                      <TableCell className="font-medium">{job.title}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">{job.category}</div>
+                        <div className="text-xs text-muted-foreground">{job.location}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{job.type}</div>
+                        <div className="text-xs text-muted-foreground">{job.salary}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={job.isActive ? "default" : "secondary"}>{job.isActive ? "Active" : "Closed"}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No jobs found.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {/* ── Create Job Tab ────────────────────────────────────────────── */}
+        <TabsContent value="create">
+          <div className="bg-card border rounded-xl shadow-sm p-6 md:p-8 max-w-3xl">
+            <h2 className="text-xl font-bold mb-6">Post a New Job</h2>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField control={form.control} name="title" render={({ field }) => (
+                  <FormItem><FormLabel>Job Title</FormLabel><FormControl><Input placeholder="e.g. Senior Software Engineer" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="category" render={({ field }) => (
+                    <FormItem><FormLabel>Category</FormLabel><FormControl><Input placeholder="e.g. IT, Healthcare" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="location" render={({ field }) => (
+                    <FormItem><FormLabel>Location</FormLabel><FormControl><Input placeholder="e.g. Berlin, Germany" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="type" render={({ field }) => (
+                    <FormItem><FormLabel>Employment Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="Full-time">Full-time</SelectItem>
+                          <SelectItem value="Part-time">Part-time</SelectItem>
+                          <SelectItem value="Contract">Contract</SelectItem>
+                          <SelectItem value="Seasonal">Seasonal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="salary" render={({ field }) => (
+                    <FormItem><FormLabel>Salary Range</FormLabel><FormControl><Input placeholder="e.g. €3,000–€4,500/month" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+                <FormField control={form.control} name="description" render={({ field }) => (
+                  <FormItem><FormLabel>Job Description</FormLabel><FormControl><Textarea placeholder="Detailed description…" className="min-h-32" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="requirements" render={({ field }) => (
+                  <FormItem><FormLabel>Requirements</FormLabel><FormControl><Textarea placeholder="Qualifications, skills…" className="min-h-32" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="benefits" render={({ field }) => (
+                  <FormItem><FormLabel>Benefits & Support (Optional)</FormLabel><FormControl><Textarea placeholder="Relocation package, insurance…" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <Button type="submit" disabled={createJob.isPending}>
+                  {createJob.isPending ? "Creating…" : "Publish Job"}
+                </Button>
+              </form>
+            </Form>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Approve/Reject Dialog ─────────────────────────────────────── */}
+      <Dialog open={!!actionApp} onOpenChange={() => setActionApp(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className={actionApp?.action === "approve" ? "text-green-700" : "text-red-700"}>
+              {actionApp?.action === "approve" ? "Approve Application" : "Reject Application"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-sm text-muted-foreground mb-4">
+              {actionApp?.action === "approve"
+                ? `Approving ${actionApp?.name}'s application. A PDF offer letter will be generated and emailed.`
+                : `Rejecting ${actionApp?.name}'s application. A rejection email will be sent.`}
+            </p>
+            <label className="text-sm font-medium mb-1 block">
+              {actionApp?.action === "approve" ? "Offer notes / next steps (optional)" : "Reason (optional)"}
+            </label>
+            <Textarea
+              placeholder={actionApp?.action === "approve" ? "e.g. Start date, onboarding instructions…" : "e.g. Position filled…"}
+              value={actionNotes}
+              onChange={(e) => setActionNotes(e.target.value)}
+              className="min-h-24"
+            />
+            {actionApp?.action === "approve" && (
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                <FileText className="w-3 h-3" /> PDF offer letter will be attached to the email.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setActionApp(null)}>Cancel</Button>
+            <Button
+              className={actionApp?.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+              onClick={handleApproveReject}
+              disabled={actionLoading}
+            >
+              {actionLoading ? "Processing…" : actionApp?.action === "approve" ? "Confirm Approval" : "Confirm Rejection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

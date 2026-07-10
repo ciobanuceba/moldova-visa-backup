@@ -1,0 +1,614 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Moldova Visa Assist Recruitment API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: jobs
+    description: Job listings
+  - name: applications
+    description: Job applications
+  - name: permits
+    description: Work permit applications
+  - name: upload
+    description: File uploads
+  - name: stats
+    description: Site statistics
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List all job openings
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a new job listing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobInput"
+      responses:
+        "201":
+          description: Created job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a specific job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Not found
+
+  /applications:
+    get:
+      operationId: listApplications
+      tags: [applications]
+      summary: List all applications
+      responses:
+        "200":
+          description: List of applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Application"
+    post:
+      operationId: submitApplication
+      tags: [applications]
+      summary: Submit a job application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationInput"
+      responses:
+        "201":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+
+  /work-permits:
+    post:
+      operationId: submitWorkPermit
+      tags: [permits]
+      summary: Submit a work permit application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkPermitInput"
+      responses:
+        "201":
+          description: Work permit submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPermit"
+
+  /work-permits/{id}:
+    get:
+      operationId: getWorkPermit
+      tags: [permits]
+      summary: Get a work permit application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Work permit details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkPermit"
+        "404":
+          description: Not found
+
+  /upload/resume:
+    post:
+      operationId: uploadResume
+      tags: [upload]
+      summary: Upload a resume file (PDF or DOCX)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Upload successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+        "400":
+          description: Invalid file
+
+  /stats:
+    get:
+      operationId: getSiteStats
+      tags: [stats]
+      summary: Get site-wide statistics
+      responses:
+        "200":
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SiteStats"
+
+  /contact:
+    post:
+      operationId: submitContact
+      tags: [applications]
+      summary: Submit a contact inquiry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "201":
+          description: Inquiry submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactInquiry"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    Job:
+      type: object
+      required:
+        - id
+        - title
+        - category
+        - location
+        - type
+        - description
+        - requirements
+        - salary
+        - isActive
+        - createdAt
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        category:
+          type: string
+        location:
+          type: string
+        type:
+          type: string
+        description:
+          type: string
+        requirements:
+          type: string
+        salary:
+          type: string
+        benefits:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+
+    JobInput:
+      type: object
+      required:
+        - title
+        - category
+        - location
+        - type
+        - description
+        - requirements
+        - salary
+      properties:
+        title:
+          type: string
+        category:
+          type: string
+        location:
+          type: string
+        type:
+          type: string
+        description:
+          type: string
+        requirements:
+          type: string
+        salary:
+          type: string
+        benefits:
+          type: string
+
+    Application:
+      type: object
+      required:
+        - id
+        - jobId
+        - firstName
+        - lastName
+        - email
+        - phone
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        nationality:
+          type: ["string", "null"]
+        dateOfBirth:
+          type: ["string", "null"]
+        passportNumber:
+          type: ["string", "null"]
+        yearsExperience:
+          type: ["string", "null"]
+        skills:
+          type: ["string", "null"]
+        languages:
+          type: ["string", "null"]
+        availableFrom:
+          type: ["string", "null"]
+        resumeUrl:
+          type: ["string", "null"]
+        coverLetter:
+          type: ["string", "null"]
+        experience:
+          type: ["string", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+
+    ApplicationInput:
+      type: object
+      required:
+        - jobId
+        - firstName
+        - lastName
+        - email
+        - phone
+      properties:
+        jobId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        nationality:
+          type: string
+        dateOfBirth:
+          type: string
+        passportNumber:
+          type: string
+        yearsExperience:
+          type: string
+        skills:
+          type: string
+        languages:
+          type: string
+        availableFrom:
+          type: string
+        resumeUrl:
+          type: string
+        coverLetter:
+          type: string
+        experience:
+          type: string
+
+    WorkPermitInput:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - email
+        - phone
+        - nationality
+        - dateOfBirth
+        - passportNumber
+        - passportExpiry
+        - currentAddress
+        - permitType
+        - employerName
+        - employerCountry
+        - jobTitle
+        - jobSalary
+        - startDate
+        - contractDuration
+        - hasPassport
+        - hasJobOffer
+        - hasMedicalCert
+        - hasCriminalRecord
+        - hasPhotos
+        - hasEducationCert
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        nationality:
+          type: string
+        dateOfBirth:
+          type: string
+        passportNumber:
+          type: string
+        passportExpiry:
+          type: string
+        currentAddress:
+          type: string
+        permitType:
+          type: string
+        employerName:
+          type: string
+        employerCountry:
+          type: string
+        jobTitle:
+          type: string
+        jobSalary:
+          type: string
+        startDate:
+          type: string
+        contractDuration:
+          type: string
+        hasPassport:
+          type: boolean
+        hasJobOffer:
+          type: boolean
+        hasMedicalCert:
+          type: boolean
+        hasCriminalRecord:
+          type: boolean
+        hasPhotos:
+          type: boolean
+        hasEducationCert:
+          type: boolean
+
+    WorkPermit:
+      type: object
+      required:
+        - id
+        - referenceNumber
+        - firstName
+        - lastName
+        - email
+        - phone
+        - nationality
+        - dateOfBirth
+        - passportNumber
+        - passportExpiry
+        - currentAddress
+        - permitType
+        - employerName
+        - employerCountry
+        - jobTitle
+        - jobSalary
+        - startDate
+        - contractDuration
+        - hasPassport
+        - hasJobOffer
+        - hasMedicalCert
+        - hasCriminalRecord
+        - hasPhotos
+        - hasEducationCert
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+        referenceNumber:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        nationality:
+          type: string
+        dateOfBirth:
+          type: string
+        passportNumber:
+          type: string
+        passportExpiry:
+          type: string
+        currentAddress:
+          type: string
+        permitType:
+          type: string
+        employerName:
+          type: string
+        employerCountry:
+          type: string
+        jobTitle:
+          type: string
+        jobSalary:
+          type: string
+        startDate:
+          type: string
+        contractDuration:
+          type: string
+        hasPassport:
+          type: boolean
+        hasJobOffer:
+          type: boolean
+        hasMedicalCert:
+          type: boolean
+        hasCriminalRecord:
+          type: boolean
+        hasPhotos:
+          type: boolean
+        hasEducationCert:
+          type: boolean
+        status:
+          type: string
+        createdAt:
+          type: string
+
+    UploadResponse:
+      type: object
+      required: [url, filename]
+      properties:
+        url:
+          type: string
+        filename:
+          type: string
+
+    ContactInput:
+      type: object
+      required:
+        - name
+        - email
+        - subject
+        - message
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        subject:
+          type: string
+        message:
+          type: string
+
+    ContactInquiry:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - subject
+        - message
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        subject:
+          type: string
+        message:
+          type: string
+        createdAt:
+          type: string
+
+    SiteStats:
+      type: object
+      required:
+        - totalJobs
+        - totalApplications
+        - totalCategories
+        - countriesServed
+      properties:
+        totalJobs:
+          type: integer
+        totalApplications:
+          type: integer
+        totalCategories:
+          type: integer
+        countriesServed:
+          type: integer

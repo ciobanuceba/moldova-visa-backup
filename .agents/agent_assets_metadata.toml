@@ -1,0 +1,20 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "K-PlEOACCXjzjhoxwknjL"
+uri = "file://artifacts/moldova-visa-assist/src/assets/hero-handshake.png"
+type = "image"
+title = "Professional business handshake"
+
+[[generated]]
+id = "2ZMAz6JpELkM76vEKIH96"
+uri = "file://artifacts/moldova-visa-assist/src/assets/about-office.png"
+type = "image"
+title = "European city architecture"
+
+[[generated]]
+id = "QsENnvfmRxuFLQK7phE-N"
+uri = "file://artifacts/moldova-visa-assist/src/assets/services-passport.png"
+type = "image"
+title = "Travel documents and passport"

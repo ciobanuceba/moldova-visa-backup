@@ -1,0 +1,7 @@
+- [Startup DB migrations](startup-migrations.md) — run idempotent ALTER/CREATE via pool in app.ts when drizzle push CLI is unavailable
+- [Auth system design](auth-system.md) — JWT-based admin + applicant auth; ADMIN_EMAIL/ADMIN_PASSWORD env vars; applicant_users table; JWT_SECRET env var
+- [Stripe env vars](stripe-env-vars.md) — user dismissed Replit Stripe connector; use STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET env vars directly
+- [PDFKit swc dep](pdfkit-swc-helpers.md) — pdfkit's fontkit dep requires @swc/helpers; must add as explicit dep to api-server
+- [PDFKit esbuild externalization](pdfkit-esbuild.md) — pdfkit must be in esbuild external[] or Helvetica.afm won't be found at runtime
+- [Express sub-router middleware scope](express-router-middleware-scope.md) — router.use(fn) without path runs for ALL requests; always scope with router.use('/prefix', fn)
+- [Vite dev API proxy](vite-dev-api-proxy.md) — a multi-service frontend's own vite dev server needs its own `/api` proxy to the API server port; app_preview/browser hits the frontend's own port directly, not the shared port-80 proxy

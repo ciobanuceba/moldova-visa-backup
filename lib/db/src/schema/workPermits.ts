@@ -1,0 +1,61 @@
+import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const workPermitsTable = pgTable("work_permits", {
+  id: serial("id").primaryKey(),
+  referenceNumber: text("reference_number").notNull().unique(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  nationality: text("nationality").notNull(),
+  dateOfBirth: text("date_of_birth").notNull(),
+  passportNumber: text("passport_number").notNull(),
+  passportExpiry: text("passport_expiry").notNull(),
+  currentAddress: text("current_address").notNull(),
+  permitType: text("permit_type").notNull(),
+  employerName: text("employer_name").notNull(),
+  employerCountry: text("employer_country").notNull(),
+  jobTitle: text("job_title").notNull(),
+  jobSalary: text("job_salary").notNull(),
+  startDate: text("start_date").notNull(),
+  contractDuration: text("contract_duration").notNull(),
+  hasPassport: boolean("has_passport").notNull().default(false),
+  hasJobOffer: boolean("has_job_offer").notNull().default(false),
+  hasMedicalCert: boolean("has_medical_cert").notNull().default(false),
+  hasCriminalRecord: boolean("has_criminal_record").notNull().default(false),
+  hasPhotos: boolean("has_photos").notNull().default(false),
+  hasEducationCert: boolean("has_education_cert").notNull().default(false),
+  status: text("status").notNull().default("submitted"),
+  adminNotes: text("admin_notes"),
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  paymentMethod: text("payment_method"),
+  receiptUrl: text("receipt_url"),
+  receiptFilename: text("receipt_filename"),
+  receiptUploadedAt: timestamp("receipt_uploaded_at", { withTimezone: true }),
+  paymentReviewedAt: timestamp("payment_reviewed_at", { withTimezone: true }),
+  paymentRejectionReason: text("payment_rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertWorkPermitSchema = createInsertSchema(workPermitsTable).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+  referenceNumber: true,
+  adminNotes: true,
+  paymentStatus: true,
+  stripeSessionId: true,
+  stripePaymentIntentId: true,
+  paymentMethod: true,
+  receiptUrl: true,
+  receiptFilename: true,
+  receiptUploadedAt: true,
+  paymentReviewedAt: true,
+  paymentRejectionReason: true,
+});
+export type InsertWorkPermit = z.infer<typeof insertWorkPermitSchema>;
+export type WorkPermit = typeof workPermitsTable.$inferSelect;
