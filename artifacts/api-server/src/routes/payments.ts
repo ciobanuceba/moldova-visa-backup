@@ -23,28 +23,21 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// Bank / mobile banking details configured via secrets, shown on the manual payment page
-function getManualPaymentMethods() {
-  const methods: Array<Record<string, string>> = [];
+// Manual payment methods shown on the payment page.
+// Skrill uses a fixed email (not sensitive account/routing info, safe to show).
+// Nagad shows a QR code image only — never a phone number. Until a QR image is
+// configured, the method is omitted from the list entirely so nothing broken
+// or placeholder-y is shown to users; add NAGAD_QR_URL to enable it later
+// without touching any layout code.
+const SKRILL_EMAIL = "ciobanuceban@gmail.com";
 
-  if (process.env.BANK_ACCOUNT_HOLDER && process.env.BANK_ACCOUNT_NUMBER) {
-    methods.push({
-      type: "bank_transfer",
-      label: "Bank Transfer",
-      bankName: "Dutch-Bangla Bank",
-      accountHolder: process.env.BANK_ACCOUNT_HOLDER,
-      accountNumber: process.env.BANK_ACCOUNT_NUMBER,
-      branch: process.env.BANK_BRANCH || "",
-    });
-  }
-  if (process.env.BKASH_NUMBER) {
-    methods.push({ type: "bkash", label: "bKash", number: process.env.BKASH_NUMBER });
-  }
-  if (process.env.NAGAD_NUMBER) {
-    methods.push({ type: "nagad", label: "Nagad", number: process.env.NAGAD_NUMBER });
-  }
-  if (process.env.ROCKET_NUMBER) {
-    methods.push({ type: "rocket", label: "Rocket", number: process.env.ROCKET_NUMBER });
+function getManualPaymentMethods() {
+  const methods: Array<Record<string, string>> = [
+    { type: "skrill", label: "Skrill", email: SKRILL_EMAIL },
+  ];
+
+  if (process.env.NAGAD_QR_URL) {
+    methods.push({ type: "nagad", label: "Nagad", qrUrl: process.env.NAGAD_QR_URL });
   }
 
   return methods;

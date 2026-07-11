@@ -29,11 +29,12 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import LetterBuilder from "./pages/LetterBuilder";
 import WorkPermit from "./pages/WorkPermit";
+import WorkPermitPayment from "./pages/WorkPermitPayment";
 import NotFound from "./pages/not-found";
 
 const queryClient = new QueryClient();
 
-const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel"];
+const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel", "/work-permit/pay"];
 
 function Layout({ children, path }: { children: React.ReactNode; path?: string }) {
   const noChrome = path && NO_CHROME_ROUTES.some(r => path.startsWith(r));
@@ -67,6 +68,9 @@ function Router() {
       </Route>
       <Route path="/work-permit/payment-cancel">
         {() => <Layout path="/work-permit/payment-cancel"><PaymentCancel /></Layout>}
+      </Route>
+      <Route path="/work-permit/:id/pay">
+        {() => <Layout path="/work-permit/pay"><WorkPermitPayment /></Layout>}
       </Route>
       <Route path="/" component={() => <Layout><Home /></Layout>} />
       <Route path="/jobs" component={() => <Layout><Jobs /></Layout>} />

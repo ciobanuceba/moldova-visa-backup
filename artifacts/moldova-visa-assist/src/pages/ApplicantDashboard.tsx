@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import { Briefcase, FileText, CheckCircle2, XCircle, Clock, LogOut, User, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth, authHeaders } from "@/lib/auth";
-import { useToast } from "@/hooks/use-toast";
 
 interface Application {
   id: number;
@@ -48,11 +47,9 @@ function StatusBadge({ status }: { status: string }) {
 export default function ApplicantDashboard() {
   const [, navigate] = useLocation();
   const { user, logout, isApplicant } = useAuth();
-  const { toast } = useToast();
   const [applications, setApplications] = useState<Application[]>([]);
   const [workPermits, setWorkPermits] = useState<WorkPermit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [payingId, setPayingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isApplicant) { navigate("/login"); return; }
@@ -71,33 +68,6 @@ export default function ApplicantDashboard() {
       if (permitsRes.ok) setWorkPermits(await permitsRes.json());
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handlePayWorkPermit(id: number) {
-    if (!user) return;
-    setPayingId(id);
-    try {
-      const res = await fetch("/api/payments/work-permit/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
-        body: JSON.stringify({ workPermitId: id }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 503) {
-          toast({
-            title: "Online payment coming soon",
-            description: "We're finalizing our secure payment setup. Please contact us at the details on our Contact page to complete your €99 fee for now.",
-          });
-        } else {
-          toast({ title: "Payment error", description: data.error ?? "Something went wrong. Please try again later.", variant: "destructive" });
-        }
-        return;
-      }
-      window.location.href = data.url;
-    } finally {
-      setPayingId(null);
     }
   }
 
@@ -192,16 +162,22 @@ export default function ApplicantDashboard() {
                     <p className="text-sm text-muted-foreground">{wp.job_title} · {wp.employer_name}, {wp.employer_country}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {wp.payment_status === "unpaid" && (
+                    {(wp.payment_status === "unpaid" || wp.payment_status === "rejected") && (
                       <Button
                         size="sm"
                         className="bg-secondary hover:bg-secondary/90 text-primary font-semibold"
-                        disabled={payingId === wp.id}
-                        onClick={() => handlePayWorkPermit(wp.id)}
+                        asChild
                       >
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        {payingId === wp.id ? "Redirecting…" : "Pay Fee (€99)"}
+                        <Link href={`/work-permit/${wp.id}/pay`}>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          {wp.payment_status === "rejected" ? "Resubmit Payment" : "Pay Fee (€99)"}
+                        </Link>
                       </Button>
+                    )}
+                    {wp.payment_status === "pending_review" && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        <Clock className="w-3 h-3" /> Payment Under Review
+                      </span>
                     )}
                     <p className="text-xs text-muted-foreground whitespace-nowrap">
                       {new Date(wp.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
