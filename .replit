@@ -30,3 +30,7 @@ deploymentTarget = "cloudrun"
 
 [userenv.shared]
 NAGAD_NUMBER = "01635439623"
+EMAIL_FROM = "ciobanuceban@gmail.com"
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = "587"
+SMTP_USER = "ciobanuceban@gmail.com"
