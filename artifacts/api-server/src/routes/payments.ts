@@ -25,10 +25,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 // Manual payment methods shown on the payment page.
 // Skrill uses a fixed email (not sensitive account/routing info, safe to show).
-// Nagad shows a QR code image only — never a phone number. Until a QR image is
-// configured, the method is omitted from the list entirely so nothing broken
-// or placeholder-y is shown to users; add NAGAD_QR_URL to enable it later
-// without touching any layout code.
+// Nagad: show phone number if NAGAD_NUMBER is set; also show QR image if NAGAD_QR_URL is set.
 const SKRILL_EMAIL = "ciobanuceban@gmail.com";
 
 function getManualPaymentMethods() {
@@ -36,8 +33,14 @@ function getManualPaymentMethods() {
     { type: "skrill", label: "Skrill", email: SKRILL_EMAIL },
   ];
 
-  if (process.env.NAGAD_QR_URL) {
-    methods.push({ type: "nagad", label: "Nagad", qrUrl: process.env.NAGAD_QR_URL });
+  if (process.env.NAGAD_NUMBER) {
+    const nagad: Record<string, string> = {
+      type: "nagad",
+      label: "Nagad",
+      number: process.env.NAGAD_NUMBER,
+    };
+    if (process.env.NAGAD_QR_URL) nagad.qrUrl = process.env.NAGAD_QR_URL;
+    methods.push(nagad);
   }
 
   return methods;

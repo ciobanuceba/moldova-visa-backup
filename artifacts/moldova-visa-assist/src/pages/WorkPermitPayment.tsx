@@ -18,7 +18,7 @@ interface PaymentInfo {
   receiptFilename: string | null;
   receiptUploadedAt: string | null;
   rejectionReason: string | null;
-  methods: Array<{ type: string; label: string; email?: string; qrUrl?: string }>;
+  methods: Array<{ type: string; label: string; email?: string; number?: string; qrUrl?: string }>;
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -240,8 +240,28 @@ export default function WorkPermitPayment() {
                       </div>
                       <span className="font-semibold text-foreground">Nagad</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mb-2">Scan the QR code in your Nagad app</p>
-                    <img src={nagad.qrUrl} alt="Nagad payment QR code" className="w-32 h-32 object-contain rounded-lg border border-border bg-white" />
+                    {nagad.number && (
+                      <>
+                        <p className="text-xs text-muted-foreground mb-1.5">Send to this Nagad number</p>
+                        <div className="flex items-center gap-2">
+                          <code className="text-sm font-medium bg-muted px-2 py-1 rounded">{nagad.number}</code>
+                          <span
+                            role="button"
+                            onClick={(e) => { e.stopPropagation(); handleCopy(nagad.number!); }}
+                            className="shrink-0 p-1.5 rounded-md hover:bg-muted transition-colors"
+                            title="Copy number"
+                          >
+                            {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    {nagad.qrUrl && (
+                      <>
+                        <p className="text-xs text-muted-foreground mt-3 mb-2">Or scan the QR code in your Nagad app</p>
+                        <img src={nagad.qrUrl} alt="Nagad payment QR code" className="w-32 h-32 object-contain rounded-lg border border-border bg-white" />
+                      </>
+                    )}
                   </button>
                 ) : (
                   <div className="rounded-xl border-2 border-dashed border-border p-5 flex flex-col items-center justify-center text-center opacity-60">
