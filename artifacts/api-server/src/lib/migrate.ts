@@ -66,6 +66,12 @@ export async function runMigrations(): Promise<void> {
     `);
 
     await client.query(`
+      ALTER TABLE work_permits
+        ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS valid_until TIMESTAMPTZ;
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS applicant_users (
         id SERIAL PRIMARY KEY,
         email TEXT NOT NULL UNIQUE,

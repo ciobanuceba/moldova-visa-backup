@@ -12,7 +12,7 @@ import {
   workPermitPaymentApprovedEmail,
   workPermitPaymentRejectedEmail,
 } from "../lib/email";
-import { generateOfferLetterPdf } from "../lib/pdf";
+import { generateOfferLetterPdf, generateWorkPermitDecisionPdf } from "../lib/pdf";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -293,20 +293,50 @@ router.patch("/admin/work-permits/:id/approve", async (req, res): Promise<void> 
   const { notes } = req.body ?? {};
   const client = await pool.connect();
   try {
+    const approvedAt = new Date();
+    const validUntil = new Date(approvedAt);
+    validUntil.setFullYear(validUntil.getFullYear() + 1);
+
     const { rows } = await client.query(
-      `UPDATE work_permits SET status = 'approved', admin_notes = $1 WHERE id = $2 RETURNING *`,
-      [notes ?? null, id]
+      `UPDATE work_permits
+         SET status = 'approved', admin_notes = $1,
+             approved_at = $2, valid_until = $3
+       WHERE id = $4 RETURNING *`,
+      [notes ?? null, approvedAt, validUntil, id]
     );
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     const permit = rows[0];
 
-    sendEmail({
-      to: permit.email,
-      subject: `Work Permit Approved — ${permit.reference_number}`,
-      html: workPermitApprovedEmail(permit.first_name, permit.reference_number, notes ?? undefined),
-    }).catch((err) => logger.error({ err }, "Failed to send work permit approved email"));
+    // Generate and email the official decision PDF in the background
+    (async () => {
+      try {
+        const pdfBuffer = await generateWorkPermitDecisionPdf({
+          referenceNumber: permit.reference_number,
+          firstName: permit.first_name,
+          lastName: permit.last_name,
+          nationality: permit.nationality,
+          dateOfBirth: permit.date_of_birth,
+          passportNumber: permit.passport_number,
+          approvedAt,
+          validUntil,
+        });
 
-    res.json({ success: true, status: "approved" });
+        await sendEmail({
+          to: permit.email,
+          subject: `Work Permit Approved — ${permit.reference_number}`,
+          html: workPermitApprovedEmail(permit.first_name, permit.reference_number, validUntil, notes ?? undefined),
+          attachments: [{
+            filename: `work-permit-decision-${permit.reference_number}.pdf`,
+            content: pdfBuffer,
+            contentType: "application/pdf",
+          }],
+        });
+      } catch (err) {
+        logger.error({ err }, "Failed to generate/send work permit decision PDF");
+      }
+    })();
+
+    res.json({ success: true, status: "approved", validUntil: validUntil.toISOString() });
   } finally { client.release(); }
 });
 

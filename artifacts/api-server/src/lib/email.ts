@@ -158,13 +158,17 @@ export function workPermitPaymentConfirmedEmail(firstName: string, refNumber: st
         <p>Your application is now under review by our team. You will receive an update within 5–7 business days.</p>`);
 }
 
-export function workPermitApprovedEmail(firstName: string, refNumber: string, notes?: string): string {
+export function workPermitApprovedEmail(firstName: string, refNumber: string, validUntil: Date, notes?: string): string {
+  const validStr = validUntil.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   return wrap(`
-        <h2 style="color:#16a34a;margin-top:0">🎉 Work Permit Application Approved!</h2>
+        <h2 style="color:#16a34a;margin-top:0">🎉 Work Permit Approved!</h2>
         <p>Dear ${firstName},</p>
-        <p>We are pleased to inform you that your work permit application <strong>${refNumber}</strong> has been <strong>approved</strong>.</p>
-        ${notes ? `<p>${notes}</p>` : ""}
-        <p>Our team will be in touch shortly with the next steps to finalize your relocation.</p>`);
+        <p>We are delighted to inform you that your work permit application <strong>${refNumber}</strong> has been <strong>approved</strong> by the General Inspectorate for Migration of the Republic of Moldova.</p>
+        <p>Your permit is valid until <strong>${validStr}</strong>.</p>
+        <p>Please find your official decision document (<em>Decizie</em>) attached to this email. Keep it in a safe place — you will need it when entering and working in Moldova.</p>
+        ${notes ? `<p><strong>Note from our team:</strong> ${notes}</p>` : ""}
+        <p>If you have any questions, please reply to this email or contact our support team.</p>
+        <p style="color:#6b7280;font-size:13px">This document is issued under Law no. 200 of 16.07.2010 on the regime of foreigners in the Republic of Moldova.</p>`);
 }
 
 export function workPermitRejectedEmail(firstName: string, refNumber: string, reason?: string): string {
