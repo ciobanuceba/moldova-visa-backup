@@ -2,9 +2,11 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Fonts directory — one level above the dist bundle in both dev and prod.
-// The banner in build.mjs sets globalThis.__dirname to the bundle's directory,
-// so __dirname is always the dist/ folder at runtime.
+// ─── Environment Setup for ESM ──────────────────────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Fonts directory
 const FONTS_DIR = path.join(__dirname, "..", "fonts");
 
 // ─── Work Permit Decision (Decizie) ──────────────────────────────────────────
@@ -28,7 +30,6 @@ function fmtDate(d: Date): string {
 }
 
 function fmtDOB(raw: string): string {
-  // handles YYYY-MM-DD, DD.MM.YYYY, DD/MM/YYYY
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`;
   return raw;
@@ -48,39 +49,31 @@ export async function generateWorkPermitDecisionPdf(
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    // Register Overpass fonts — support full Latin Extended (Romanian diacritics)
+    // Register Overpass fonts
     doc.registerFont("Regular", path.join(FONTS_DIR, "overpass-regular.ttf"));
     doc.registerFont("Bold", path.join(FONTS_DIR, "overpass-bold.ttf"));
 
     const PW = 595.28;          // A4 width
     const ML = 50;              // left margin
     const MR = 545;             // right edge
-    const CW = MR - ML;        // content width = 495
+    const CW = MR - ML;         // content width = 495
 
     // ── Top horizontal rule ──────────────────────────────────────────────────
     doc.moveTo(ML, 45).lineTo(MR, 45).lineWidth(1.8).strokeColor("#000").stroke();
 
     // ── Institution header ───────────────────────────────────────────────────
-    // Logo placeholder (left)
     doc.rect(ML, 50, 36, 36).lineWidth(0.7).strokeColor("#555").stroke();
-    doc.font("Regular").fontSize(4.5).fillColor("#555")
-      .text("SEAL", ML + 9, 65);
+    doc.font("Regular").fontSize(4.5).fillColor("#555").text("SEAL", ML + 9, 65);
 
-    // Logo placeholder (right)
     doc.rect(MR - 36, 50, 36, 36).lineWidth(0.7).strokeColor("#555").stroke();
-    doc.font("Regular").fontSize(4.5).fillColor("#555")
-      .text("IGM", MR - 27, 65);
+    doc.font("Regular").fontSize(4.5).fillColor("#555").text("IGM", MR - 27, 65);
 
-    // Centered text between logos
     const hdrLeft = ML + 42;
     const hdrW = CW - 84;
     doc.font("Bold").fontSize(9.5).fillColor("#000")
-      .text("Ministerul Afacerilor Interne al Republicii Moldova",
-        hdrLeft, 53, { width: hdrW, align: "center", lineGap: 1 })
-      .text("Inspectoratul General Pentru Migratie",
-        hdrLeft, doc.y, { width: hdrW, align: "center", lineGap: 1 })
-      .text("Directia regionala Centru",
-        hdrLeft, doc.y, { width: hdrW, align: "center" });
+      .text("Ministerul Afacerilor Interne al Republicii Moldova", hdrLeft, 53, { width: hdrW, align: "center", lineGap: 1 })
+      .text("Inspectoratul General Pentru Migratie", hdrLeft, doc.y, { width: hdrW, align: "center", lineGap: 1 })
+      .text("Directia regionala Centru", hdrLeft, doc.y, { width: hdrW, align: "center" });
 
     // ── Second horizontal rule ───────────────────────────────────────────────
     const rule2Y = 94;
@@ -89,35 +82,28 @@ export async function generateWorkPermitDecisionPdf(
 
     // ── Contact info ─────────────────────────────────────────────────────────
     doc.font("Regular").fontSize(7.5).fillColor("#111")
-      .text("MD 2012, mun. Chisinau, bd. Stefan cel Mare 124  tel: 0-22-265-607",
-        ML, 102, { width: CW, align: "center" })
-      .text("e-mail: centru@igm.gov.md",
-        ML, 113, { width: CW, align: "center" });
+      .text("MD 2012, mun. Chisinau, bd. Stefan cel Mare 124  tel: 0-22-265-607", ML, 102, { width: CW, align: "center" })
+      .text("e-mail: centru@igm.gov.md", ML, 113, { width: CW, align: "center" });
 
     // ── DECIZIE nr. ──────────────────────────────────────────────────────────
     doc.font("Bold").fontSize(17).fillColor("#000")
-      .text(spaced("DECIZIE") + "  nr.  " + data.referenceNumber,
-        ML, 168, { width: CW, align: "center" });
+      .text(spaced("DECIZIE") + "  nr.  " + data.referenceNumber, ML, 168, { width: CW, align: "center" });
 
     doc.font("Regular").fontSize(10.5).fillColor("#000")
-      .text("cu privire la dreptul de sedere provizori in scope de munca",
-        ML, 197, { width: CW, align: "center" })
-      .text("lurator imigrant",
-        ML, 211, { width: CW, align: "center" });
+      .text("cu privire la dreptul de sedere provizori in scope de munca", ML, 197, { width: CW, align: "center" })
+      .text("lurator imigrant", ML, 211, { width: CW, align: "center" });
 
     // ── Date / City row ──────────────────────────────────────────────────────
     const dateY = 252;
-    doc.font("Bold").fontSize(10).fillColor("#000")
-      .text(fmtDate(data.approvedAt), ML, dateY);
-    doc.font("Bold").fontSize(10)
-      .text("mun. Chisinau", ML, dateY, { width: CW, align: "right" });
+    doc.font("Bold").fontSize(10).fillColor("#000").text(fmtDate(data.approvedAt), ML, dateY);
+    doc.font("Bold").fontSize(10).text("mun. Chisinau", ML, dateY, { width: CW, align: "right" });
 
     // ── Legal preamble ───────────────────────────────────────────────────────
     const preambleY = 272;
     doc.font("Regular").fontSize(9.5).fillColor("#000")
       .text(
         "  In temeiul art. 32, 43\u00b9din Legea nr. 200 din 16.07.2010 privind regimul strainilor " +
-        "in Republica Moldova si demersului \"                                              \", " +
+        "in Republica Moldova si demersului \"                                                \", " +
         "prin care se solicita acordarea dreptului de sedere provizore pentru munca",
         ML, preambleY, { width: CW, align: "justify", lineGap: 2 }
       );
@@ -133,30 +119,19 @@ export async function generateWorkPermitDecisionPdf(
       .text(data.nationality.toUpperCase(), natCol, ab1Y + 13);
 
     const fullName = (data.firstName + " " + data.lastName).toUpperCase();
-    doc.font("Bold").fontSize(9.5)
-      .text(fullName, nameX, ab1Y, { width: CW, align: "right" });
+    doc.font("Bold").fontSize(9.5).text(fullName, nameX, ab1Y, { width: CW, align: "right" });
 
-    // Underlines under nationality and name
-    doc.moveTo(natCol, ab1Y + 25).lineTo(natCol + 120, ab1Y + 25)
-      .lineWidth(0.5).strokeColor("#000").stroke();
-    // Estimate name text width for underline
+    doc.moveTo(natCol, ab1Y + 25).lineTo(natCol + 120, ab1Y + 25).lineWidth(0.5).strokeColor("#000").stroke();
     const nameW = Math.min(doc.widthOfString(fullName) + 4, 180);
-    doc.moveTo(MR - nameW, ab1Y + 25).lineTo(MR, ab1Y + 25)
-      .lineWidth(0.5).strokeColor("#000").stroke();
+    doc.moveTo(MR - nameW, ab1Y + 25).lineTo(MR, ab1Y + 25).lineWidth(0.5).strokeColor("#000").stroke();
 
-    doc.font("Regular").fontSize(7)
-      .text("cetatenia", natCol, ab1Y + 28, { width: 80 });
-    doc.font("Regular").fontSize(7)
-      .text("mamelc, prenumele", nameX, ab1Y + 28, { width: CW, align: "right" });
+    doc.font("Regular").fontSize(7).text("cetatenia", natCol, ab1Y + 28, { width: 80 });
+    doc.font("Regular").fontSize(7).text("mamelc, prenumele", nameX, ab1Y + 28, { width: CW, align: "right" });
 
     // ── DECID: ───────────────────────────────────────────────────────────────
     const decidY = 372;
-    doc.font("Bold").fontSize(13)
-      .text(spaced("D E C I D") + ":", ML, decidY, { width: CW, align: "center" });
-
-    doc.font("Bold").fontSize(10)
-      .text("Se aprobare dreptul de sedere provizorie pentru munca in Republica Moldova",
-        ML, 392, { width: CW, align: "left", lineGap: 2 });
+    doc.font("Bold").fontSize(13).text(spaced("D E C I D") + ":", ML, decidY, { width: CW, align: "center" });
+    doc.font("Bold").fontSize(10).text("Se aprobare dreptul de sedere provizorie pentru munca in Republica Moldova", ML, 392, { width: CW, align: "left", lineGap: 2 });
 
     // ── Applicant block — second (formal) mention ────────────────────────────
     const ab2Y = 418;
@@ -164,19 +139,13 @@ export async function generateWorkPermitDecisionPdf(
     doc.font("Bold").fontSize(9.5)
       .text("REPUBLICA POPULARA", natCol, ab2Y)
       .text(data.nationality.toUpperCase(), natCol, ab2Y + 13);
-    doc.font("Bold").fontSize(9.5)
-      .text(fullName, nameX, ab2Y, { width: CW, align: "right" });
+    doc.font("Bold").fontSize(9.5).text(fullName, nameX, ab2Y, { width: CW, align: "right" });
 
-    // Underlines
-    doc.moveTo(natCol, ab2Y + 25).lineTo(natCol + 120, ab2Y + 25)
-      .lineWidth(0.5).stroke();
-    doc.moveTo(MR - nameW, ab2Y + 25).lineTo(MR, ab2Y + 25)
-      .lineWidth(0.5).stroke();
+    doc.moveTo(natCol, ab2Y + 25).lineTo(natCol + 120, ab2Y + 25).lineWidth(0.5).stroke();
+    doc.moveTo(MR - nameW, ab2Y + 25).lineTo(MR, ab2Y + 25).lineWidth(0.5).stroke();
 
-    doc.font("Regular").fontSize(7)
-      .text("cet. aserii", natCol, ab2Y + 28, { width: 80 });
-    doc.font("Regular").fontSize(7)
-      .text("mamelc, prenumele", nameX, ab2Y + 28, { width: CW, align: "right" });
+    doc.font("Regular").fontSize(7).text("cet. aserii", natCol, ab2Y + 28, { width: 80 });
+    doc.font("Regular").fontSize(7).text("mamelc, prenumele", nameX, ab2Y + 28, { width: CW, align: "right" });
 
     // ── DOB / Passport row ───────────────────────────────────────────────────
     const rowY = 458;
@@ -200,21 +169,24 @@ export async function generateWorkPermitDecisionPdf(
 
     // ── Signature block ──────────────────────────────────────────────────────
     const sigY = 520;
-    doc.font("Bold").fontSize(10)
+    doc.font("Bold").fontSize(10).fillColor("#000")
       .text("Sef Directie regionala", ML, sigY);
-
-    // Stamp circle
-    const stampCX = PW / 2;
-    const stampCY = sigY + 30;
-    doc.circle(stampCX, stampCY, 34).lineWidth(0.9).strokeColor("#666").stroke();
-    doc.circle(stampCX, stampCY, 28).lineWidth(0.5).strokeColor("#888").stroke();
-    doc.font("Regular").fontSize(5.5).fillColor("#777")
-      .text("INSPECTORATUL", stampCX - 18, stampCY - 10)
-      .text("GENERAL", stampCX - 10, stampCY - 3)
-      .text("MIGRATIE", stampCX - 10, stampCY + 4);
 
     doc.font("Bold").fontSize(10).fillColor("#000")
       .text("Veaceslav PATRAS", ML, sigY, { width: CW, align: "right" });
+
+    // 🔄 আসল স্ট্যাম্প ইমেজ (stamp.png) সরাসরি বসানোর লজিক
+    try {
+      const stampPath = path.join(FONTS_DIR, "stamp.png"); 
+      doc.image(stampPath, PW / 2 - 55, sigY - 15, {
+        width: 110, 
+      });
+    } catch (stampError) {
+      // ব্যাকআপ সার্কেল (যদি ইমেজ কোনো কারণে লোড না হয়)
+      const stampCX = PW / 2;
+      const stampCY = sigY + 30;
+      doc.circle(stampCX, stampCY, 34).lineWidth(0.9).strokeColor("#666").stroke();
+    }
 
     // ── Footer rule ──────────────────────────────────────────────────────────
     const footerRuleY = 620;
@@ -263,7 +235,6 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    // Register fonts for offer letter too
     doc.registerFont("Regular", path.join(FONTS_DIR, "overpass-regular.ttf"));
     doc.registerFont("Bold", path.join(FONTS_DIR, "overpass-bold.ttf"));
 
