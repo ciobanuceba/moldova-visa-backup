@@ -6,8 +6,8 @@ import { requireApplicant } from "../middleware/requireApplicant";
 
 const router: IRouter = Router();
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@moldova-visa-assist.replit.app";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@2024!";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "ciobanuceban@gmail.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Saif_sn1992";
 
 // ── Admin auth ────────────────────────────────────────────────────────────────
 
