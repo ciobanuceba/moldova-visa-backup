@@ -110,25 +110,23 @@ export default function WorkPermit() {
   const handleStep1 = (data: Step1Data) => { setStep1Data(data); setStep(1); window.scrollTo(0, 0); };
   const handleStep2 = (data: Step2Data) => { setStep2Data(data); setStep(2); window.scrollTo(0, 0); };
 
+  // ✅ MOCK API - Backend ছাড়াই Success Page দেখাবে
   const handleStep3 = async (data: Step3Data) => {
     if (!step1Data || !step2Data) return;
     setSubmitting(true);
-    try {
-      const res = await fetch("/api/work-permits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...step1Data, ...step2Data, ...data }),
-      });
-      if (!res.ok) throw new Error("Submission failed");
-      const result = await res.json();
-      setReferenceNumber(result.referenceNumber);
+
+    // 2 সেকেন্ড Wait করে Fake Success Response দিবে
+    setTimeout(() => {
+      const mockRef = `WP-${Date.now().toString().slice(-8)}`;
+      setReferenceNumber(mockRef);
       setStep(3);
-      window.scrollTo(0, 0);
-    } catch {
-      toast({ title: "Submission failed", description: "Please try again", variant: "destructive" });
-    } finally {
       setSubmitting(false);
-    }
+      window.scrollTo(0, 0);
+      toast({ 
+        title: "Success!", 
+        description: `Application submitted. Reference: ${mockRef}` 
+      });
+    }, 2000);
   };
 
   // Success screen
@@ -378,7 +376,12 @@ export default function WorkPermit() {
                         )}
                       />
                     ))}
-                    <FormMessage>{form3.formState.errors.hasPassport?.message}</FormMessage>
+                    {/* ✅ Fixed: FormMessage Bug Remove করা হইছে */}
+                    {form3.formState.errors.hasPassport && (
+                      <p className="text-sm font-medium text-destructive mt-2">
+                        {form3.formState.errors.hasPassport.message}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-800 dark:text-amber-300">
