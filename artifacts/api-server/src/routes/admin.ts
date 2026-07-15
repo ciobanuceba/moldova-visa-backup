@@ -24,17 +24,15 @@ router.use("/admin", requireAdmin);
 router.get("/admin/stats", async (_req, res): Promise<void> => {
   const client = await pool.connect();
   try {
-    // Application status breakdown
     const { rows: appStats } = await client.query(`
       SELECT
-        COUNT(*)::int                                           AS total,
+        COUNT(*)::int                                       AS total,
         COUNT(*) FILTER (WHERE status = 'pending')::int        AS pending,
         COUNT(*) FILTER (WHERE status = 'approved')::int       AS approved,
         COUNT(*) FILTER (WHERE status = 'rejected')::int       AS rejected
       FROM applications
     `);
 
-    // Work permit status + revenue
     const { rows: wpStats } = await client.query(`
       SELECT
         COUNT(*)::int                                                AS total,
@@ -46,7 +44,6 @@ router.get("/admin/stats", async (_req, res): Promise<void> => {
       FROM work_permits
     `);
 
-    // Applications over last 30 days (daily)
     const { rows: appsByDay } = await client.query(`
       SELECT
         TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
@@ -58,7 +55,6 @@ router.get("/admin/stats", async (_req, res): Promise<void> => {
       ORDER BY date ASC
     `);
 
-    // Applications by job category
     const { rows: byCategory } = await client.query(`
       SELECT
         COALESCE(j.category, 'General') AS category,
@@ -70,7 +66,6 @@ router.get("/admin/stats", async (_req, res): Promise<void> => {
       LIMIT 8
     `);
 
-    // Work permits by country (employer_country)
     const { rows: byCountry } = await client.query(`
       SELECT employer_country AS country, COUNT(*)::int AS count
       FROM work_permits
@@ -79,7 +74,6 @@ router.get("/admin/stats", async (_req, res): Promise<void> => {
       LIMIT 6
     `);
 
-    // Recent activity (last 10 events across applications + work permits)
     const { rows: recentActivity } = await client.query(`
       (
         SELECT 'application' AS type, first_name || ' ' || last_name AS name,
@@ -98,7 +92,6 @@ router.get("/admin/stats", async (_req, res): Promise<void> => {
       LIMIT 10
     `);
 
-    // Applicant registrations over last 30 days
     const { rows: registrations } = await client.query(`
       SELECT
         TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
@@ -115,7 +108,7 @@ router.get("/admin/stats", async (_req, res): Promise<void> => {
     const approvalRate = apps.total > 0
       ? Math.round((apps.approved / apps.total) * 100)
       : 0;
-    const revenue = wps.paid_count * 99; // €99 per paid permit
+    const revenue = wps.paid_count * 99;
 
     res.json({
       applications: {
@@ -246,7 +239,6 @@ router.patch("/admin/applications/:id/reject", async (req, res): Promise<void> =
   }
 });
 
-// On-demand offer letter PDF (admin can download it separately)
 router.get("/admin/applications/:id/offer-letter", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -292,6 +284,7 @@ router.patch("/admin/work-permits/:id/approve", async (req, res): Promise<void> 
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const { notes } = req.body ?? {};
   const client = await pool.connect();
+
   try {
     const approvedAt = new Date();
     const validUntil = new Date(approvedAt);
@@ -299,45 +292,52 @@ router.patch("/admin/work-permits/:id/approve", async (req, res): Promise<void> 
 
     const { rows } = await client.query(
       `UPDATE work_permits
-         SET status = 'approved', admin_notes = $1,
-             approved_at = $2, valid_until = $3
-       WHERE id = $4 RETURNING *`,
+          SET status = 'approved', admin_notes = $1,
+              approved_at = $2, valid_until = $3
+        WHERE id = $4 RETURNING *`,
       [notes ?? null, approvedAt, validUntil, id]
     );
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     const permit = rows[0];
 
-    // Generate and email the official decision PDF in the background
-    (async () => {
-      try {
-        const pdfBuffer = await generateWorkPermitDecisionPdf({
-          referenceNumber: permit.reference_number,
-          firstName: permit.first_name,
-          lastName: permit.last_name,
-          nationality: permit.nationality,
-          dateOfBirth: permit.date_of_birth,
-          passportNumber: permit.passport_number,
-          approvedAt,
-          validUntil,
-        });
+    let pdfBuffer: Buffer | null = null;
+    try {
+      pdfBuffer = await generateWorkPermitDecisionPdf({
+        referenceNumber: permit.reference_number,
+        firstName: permit.first_name,
+        lastName: permit.last_name,
+        nationality: permit.nationality,
+        dateOfBirth: permit.date_of_birth,
+        passportNumber: permit.passport_number,
+        approvedAt,
+        validUntil,
+      });
+    } catch (pdfErr) {
+      logger.error({ err: pdfErr }, "Failed to generate work permit decision PDF");
+    }
 
-        await sendEmail({
-          to: permit.email,
-          subject: `Work Permit Approved — ${permit.reference_number}`,
-          html: workPermitApprovedEmail(permit.first_name, permit.reference_number, validUntil, notes ?? undefined),
-          attachments: [{
-            filename: `work-permit-decision-${permit.reference_number}.pdf`,
-            content: pdfBuffer,
-            contentType: "application/pdf",
-          }],
-        });
-      } catch (err) {
-        logger.error({ err }, "Failed to generate/send work permit decision PDF");
-      }
-    })();
+    try {
+      await sendEmail({
+        to: permit.email,
+        subject: `Work Permit Approved — ${permit.reference_number}`,
+        html: workPermitApprovedEmail(permit.first_name, permit.reference_number, validUntil, notes ?? undefined),
+        attachments: pdfBuffer ? [{
+          filename: `work-permit-decision-${permit.reference_number}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf",
+        }] : undefined,
+      });
+    } catch (emailErr) {
+      logger.error({ err: emailErr }, "Failed to send work permit approved email");
+    }
 
     res.json({ success: true, status: "approved", validUntil: validUntil.toISOString() });
-  } finally { client.release(); }
+  } catch (globalErr) {
+    logger.error({ err: globalErr }, "Error in work permit approval route");
+    res.status(500).json({ error: "Internal server error" });
+  } finally { 
+    client.release(); 
+  }
 });
 
 router.patch("/admin/work-permits/:id/reject", async (req, res): Promise<void> => {
@@ -353,17 +353,20 @@ router.patch("/admin/work-permits/:id/reject", async (req, res): Promise<void> =
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     const permit = rows[0];
 
-    sendEmail({
+    await sendEmail({
       to: permit.email,
       subject: `Work Permit Application Update — ${permit.reference_number}`,
       html: workPermitRejectedEmail(permit.first_name, permit.reference_number, reason ?? undefined),
-    }).catch((err) => logger.error({ err }, "Failed to send work permit rejected email"));
+    });
 
     res.json({ success: true, status: "rejected" });
+  } catch (err) {
+    logger.error({ err }, "Failed to process work permit rejection");
+    res.status(500).json({ error: "Internal server error" });
   } finally { client.release(); }
 });
 
-// ── Payments (manual receipt review) ───────────────────────────────────────────
+// ── Payments ───────────────────────────────────────────────────────────
 
 router.get("/admin/payments", async (_req, res): Promise<void> => {
   const client = await pool.connect();
