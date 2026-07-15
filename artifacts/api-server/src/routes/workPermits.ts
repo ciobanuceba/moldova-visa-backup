@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { db, workPermitsTable } from "@workspace/db";
 import { sendEmail, workPermitReceivedEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { eq } from "drizzle-orm"; // পেমেন্ট আপডেট করার জন্য এটি প্রয়োজন
 
 const router: IRouter = Router();
 
@@ -13,6 +14,9 @@ function generateRef(): string {
   return `${prefix}-${year}-${rand}`;
 }
 
+// ======================================================
+// ধাপ ১: ইউজার ফর্ম সাবমিট রাউট (স্ট্যাটাস হবে: "pending_payment")
+// ======================================================
 router.post("/work-permits", async (req, res): Promise<void> => {
   const body = req.body;
   logger.info({ body }, "Incoming work permit request body");
@@ -42,7 +46,6 @@ router.post("/work-permits", async (req, res): Promise<void> => {
   let permit;
 
   try {
-    // ডাটাবেজ সেভ করার চেষ্টা (Safe Insertion)
     const [insertedPermit] = await db
       .insert(workPermitsTable)
       .values({
@@ -69,78 +72,132 @@ router.post("/work-permits", async (req, res): Promise<void> => {
         hasCriminalRecord: Boolean(body.hasCriminalRecord),
         hasPhotos:        Boolean(body.hasPhotos),
         hasEducationCert: Boolean(body.hasEducationCert),
-        status:           "submitted",
+        status:           "pending_payment", // এখানে স্ট্যাটাস pending_payment সেট করা হলো
       })
       .returning();
 
     permit = insertedPermit;
-    logger.info({ permitId: permit.id, referenceNumber }, "Work permit successfully saved to database");
+    logger.info({ permitId: permit.id, referenceNumber }, "Work permit draft saved with pending_payment status");
   } catch (dbError) {
-    // ডাটাবেজ ফেইল হলে লগ প্রিন্ট হবে কিন্তু সার্ভার ক্র্যাশ করবে না
     logger.error({ err: dbError }, "Database insertion failed for Work Permit!");
     res.status(500).json({ error: "Database save failed. Please check server logs." });
     return;
   }
 
-  // ১. ইউজারকে কনফার্মেশন মেইল পাঠানো (Non-blocking)
+  // ১. ইউজারকে পেমেন্ট করার নির্দেশনাসহ প্রথম মেইল পাঠানো (ধাপ ১)
+  const paymentInstructionHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+      <div style="background: #f59e0b; padding: 20px; text-align: center; color: white;">
+        <h2 style="margin: 0;">আবেদন গ্রহণ করা হয়েছে (পেমেন্ট বাকি)</h2>
+        <p style="margin: 5px 0 0 0; color: #fef3c7; font-size: 14px;">Ref: ${referenceNumber}</p>
+      </div>
+      <div style="padding: 24px; background: #ffffff; color: #374151; line-height: 1.6;">
+        <p>প্রিয় ${permit.firstName},</p>
+        <p>আপনার ওয়ার্ক পারমিট আবেদনটি আমরা সফলভাবে পেয়েছি। আপনার আবেদনটি ভেরিফিকেশন ও পরবর্তী প্রসেসিংয়ে পাঠানোর জন্য অনুগ্রহ করে নির্ধারিত ফি প্রদান সম্পন্ন করুন।</p>
+        <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <strong>পেমেন্ট করার নিয়ম:</strong> আমাদের দেওয়া পেমেন্ট মাধ্যমে আপনার ফি জমা দিন। পেমেন্ট সম্পন্ন করে আমাদের কনফার্ম করার পর আপনার ফাইলটি সরাসরি রিভিউতে চলে যাবে।
+        </div>
+        <p>ধন্যবাদ,<br>Moldova Visa Assist Team</p>
+      </div>
+    </div>
+  `;
+
   sendEmail({
     to: permit.email,
-    subject: `Work Permit Application Received — ${referenceNumber}`,
-    html: workPermitReceivedEmail(permit.firstName, referenceNumber),
+    subject: `Application Received (Payment Pending) — ${referenceNumber}`,
+    html: paymentInstructionHtml,
   })
-    .then(() => logger.info({ to: permit.email }, "User work permit confirmation email sent successfully"))
-    .catch((err) => logger.error({ err }, "Failed to send work permit received email"));
+    .then(() => logger.info({ to: permit.email }, "User pending payment notification email sent"))
+    .catch((err) => logger.error({ err }, "Failed to send payment pending email"));
 
-  // ২. অ্যাডমিনকে নোটিফিকেশন মেইল পাঠানো (Non-blocking)
+  // ২. অ্যাডমিনকে নোটিফিকেশন মেইল পাঠানো
   const adminEmail = process.env.ADMIN_EMAIL;
   if (adminEmail) {
     const adminHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
         <div style="background: #0f172a; padding: 20px; text-align: center; color: white;">
-          <h2 style="margin: 0;">🚨 New Work Permit Submitted</h2>
+          <h2 style="margin: 0;">🚨 New Application (Pending Payment)</h2>
           <p style="margin: 5px 0 0 0; color: #94a3b8; font-size: 14px;">Ref: ${referenceNumber}</p>
         </div>
         <div style="padding: 24px; background: #ffffff; color: #374151; line-height: 1.6;">
           <p>Hi Admin,</p>
-          <p>A new work permit application has been submitted on the portal. Details below:</p>
-
-          <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
-            <tr style="background: #f8fafc;"><td style="padding: 8px; font-weight: bold; width: 35%;">Applicant Name:</td><td style="padding: 8px;">${permit.firstName} ${permit.lastName}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;"><a href="mailto:${permit.email}">${permit.email}</a></td></tr>
-            <tr style="background: #f8fafc;"><td style="padding: 8px; font-weight: bold;">Phone:</td><td style="padding: 8px;">${permit.phone}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Nationality:</td><td style="padding: 8px;">${permit.nationality}</td></tr>
-            <tr style="background: #f8fafc;"><td style="padding: 8px; font-weight: bold;">Passport No:</td><td style="padding: 8px;">${permit.passportNumber}</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Permit Type:</td><td style="padding: 8px;">${permit.permitType}</td></tr>
-            <tr style="background: #f8fafc;"><td style="padding: 8px; font-weight: bold;">Employer:</td><td style="padding: 8px;">${permit.employerName} (${permit.employerCountry})</td></tr>
-            <tr><td style="padding: 8px; font-weight: bold;">Job Title:</td><td style="padding: 8px;">${permit.jobTitle}</td></tr>
-            <tr style="background: #f8fafc;"><td style="padding: 8px; font-weight: bold;">Salary / Duration:</td><td style="padding: 8px;">${permit.jobSalary} / ${permit.contractDuration}</td></tr>
-          </table>
-
-          <p style="margin-top: 24px; font-size: 13px; color: #64748b; text-align: center;">Moldova Visa Assist · Admin System</p>
+          <p>A new application is waiting for payment. Once you receive the manual payment, accept it from the Admin Dashboard.</p>
+          <p><strong>Applicant:</strong> ${permit.firstName} ${permit.lastName}</p>
         </div>
       </div>
     `;
 
     sendEmail({
       to: adminEmail,
-      subject: `[Work Permit] New Application: ${permit.firstName} ${permit.lastName} [${referenceNumber}]`,
+      subject: `[Pending Payment] Application: ${permit.firstName} [${referenceNumber}]`,
       html: adminHtml,
-    })
-      .then(() => logger.info({ to: adminEmail }, "Admin work permit notification sent successfully"))
-      .catch((err) => logger.error({ err }, "Failed to send admin work permit notification"));
-  } else {
-    logger.warn("ADMIN_EMAIL is not set. Admin work permit notification skipped.");
+    }).catch((err) => logger.error({ err }, "Failed to send admin notification"));
   }
 
   res.status(201).json({
     id:              permit.id,
     referenceNumber: permit.referenceNumber,
     status:          permit.status,
-    createdAt:       permit.createdAt.toISOString(),
+    createdAt:       permit.createdAt?.toISOString() || new Date().toISOString(),
     firstName:       permit.firstName,
     lastName:        permit.lastName,
     email:           permit.email,
   });
 });
+
+// ======================================================
+// ধাপ ২ ও ৩: অ্যাডমিন কর্তৃক পেমেন্ট অ্যাকসেপ্ট ও অটো-মেইল রাউট
+// ======================================================
+router.patch("/work-permits/:id/approve-payment", async (req, res): Promise<void> => {
+  const { id } = req.params;
+
+  try {
+    // ইউজারের স্ট্যাটাস আপডেট করে "submitted" (বা Paid) করা হচ্ছে
+    const [updatedPermit] = await db
+      .update(workPermitsTable)
+      .set({ status: "submitted" })
+      .where(eq(workPermitsTable.id, parseInt(id)))
+      .returning();
+
+    if (!updatedPermit) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+
+    logger.info({ id }, "Application marked as paid/submitted by admin");
+
+    // পেমেন্ট সফল হওয়ার অটোমেটিক দ্বিতীয় মেইল পাঠানো (ধাপ ৩)
+    const paymentSuccessHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <div style="background: #16a34a; padding: 20px; text-align: center; color: white;">
+          <h2 style="margin: 0;">পেমেন্ট সফলভাবে সম্পন্ন হয়েছে! 🎉</h2>
+          <p style="margin: 5px 0 0 0; color: #dcfce7; font-size: 14px;">Ref: ${updatedPermit.referenceNumber}</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff; color: #374151; line-height: 1.6;">
+          <p>প্রিয় ${updatedPermit.firstName},</p>
+          <p>আপনার আবেদনের বিপরীতে পেমেন্টটি আমরা সফলভাবে যাচাই এবং গ্রহণ করেছি।</p>
+          <p>আপনার আবেদনটি বর্তমানে আমাদের ইমিগ্রেশন বিশেষজ্ঞদের দ্বারা রিভিউ করা হচ্ছে। পরবর্তী যেকোনো আপডেটের জন্য আমরা আপনার সাথে যোগাযোগ করব।</p>
+          <p>ধন্যবাদ,<br>Moldova Visa Assist Team</p>
+        </div>
+      </div>
+    `;
+
+    sendEmail({
+      to: updatedPermit.email,
+      subject: `Payment Confirmed & Under Review — ${updatedPermit.referenceNumber}`,
+      html: paymentSuccessHtml,
+    }).catch((err) => logger.error({ err }, "Failed to send payment confirmation email"));
+
+    res.status(200).json({ 
+      message: "Payment approved successfully, confirmation email sent", 
+      permit: updatedPermit 
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Error updating payment status");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
 
 export default router;
