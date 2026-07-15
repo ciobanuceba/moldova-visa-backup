@@ -79,10 +79,18 @@ export default function WorkPermit() {
   const [submitting, setSubmitting] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState<string | null>(null);
 
-  // States to hold the uploaded files locally
+  // States to hold the 4 uploaded files locally
+  const [passportCopyFile, setPassportCopyFile] = useState<File | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [medicalCertFile, setMedicalCertFile] = useState<File | null>(null);
   const [criminalRecordFile, setCriminalRecordFile] = useState<File | null>(null);
 
+  // Checkbox states
+  const [declaredAccurate, setDeclaredAccurate] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  const passportInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const medicalInputRef = useRef<HTMLInputElement>(null);
   const criminalInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,7 +109,7 @@ export default function WorkPermit() {
 
   const handleStep3 = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!step1Data || !step2Data) return;
+    if (!step1Data || !step2Data || !declaredAccurate || !agreedToTerms) return;
     setSubmitting(true);
 
     // Fake success delay
@@ -155,7 +163,6 @@ export default function WorkPermit() {
   }
 
   return (
-    // Fixed mobile scroll locks and added proper viewport heights with touch behavior
     <div className="min-h-screen bg-muted/20 pb-32 overflow-y-auto [scrollbar-width:thin] touch-pan-y">
       {/* Header */}
       <div className="bg-primary text-white py-14">
@@ -350,135 +357,292 @@ export default function WorkPermit() {
 
               <form onSubmit={handleStep3} className="px-6 py-5 space-y-6">
 
-                {/* File Upload 1: Medical Certificate */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground flex items-center justify-between">
-                    <span>Medical fitness certificate</span>
-                    <span className="text-xs text-muted-foreground font-normal">Optional</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">Health examination certificate from an approved clinic</p>
+                {/* 4 Files Upload Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-                  <input 
-                    type="file" 
-                    ref={medicalInputRef}
-                    className="hidden" 
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setMedicalCertFile(e.target.files[0]);
-                      }
-                    }}
-                  />
+                  {/* File Upload 1: Passport Copy */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground flex items-center justify-between">
+                      <span>Passport Copy (Biodata page)</span>
+                      <span className="text-xs text-red-500 font-normal">Required</span>
+                    </label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">High resolution scan of your passport's bio-data page</p>
 
-                  {!medicalCertFile ? (
-                    <div 
-                      onClick={() => medicalInputRef.current?.click()}
-                      onKeyDown={(e) => { if (e.key === "Enter") medicalInputRef.current?.click(); }}
-                      tabIndex={0}
-                      className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition duration-200 flex flex-col items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <Upload className="w-5 h-5" />
-                      </div>
-                      <p className="text-sm font-medium text-foreground">Click to upload file</p>
-                      <p className="text-xs text-muted-foreground">PDF, JPG or PNG (max. 5MB)</p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-4 border border-primary/30 bg-primary/5 rounded-xl">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                          <File className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{medicalCertFile.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatBytes(medicalCertFile.size)}</p>
-                        </div>
-                      </div>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => {
-                          setMedicalCertFile(null);
-                          if (medicalInputRef.current) medicalInputRef.current.value = "";
-                        }}
+                    <input 
+                      type="file" 
+                      ref={passportInputRef}
+                      className="hidden" 
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setPassportCopyFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+
+                    {!passportCopyFile ? (
+                      <div 
+                        onClick={() => passportInputRef.current?.click()}
+                        onKeyDown={(e) => { if (e.key === "Enter") passportInputRef.current?.click(); }}
+                        tabIndex={0}
+                        className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition duration-200 flex flex-col items-center gap-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
                       >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* File Upload 2: Criminal Record Clearance */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground flex items-center justify-between">
-                    <span>Criminal record clearance</span>
-                    <span className="text-xs text-muted-foreground font-normal">Optional</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">Police clearance certificate from your home country</p>
-
-                  <input 
-                    type="file" 
-                    ref={criminalInputRef}
-                    className="hidden" 
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setCriminalRecordFile(e.target.files[0]);
-                      }
-                    }}
-                  />
-
-                  {!criminalRecordFile ? (
-                    <div 
-                      onClick={() => criminalInputRef.current?.click()}
-                      onKeyDown={(e) => { if (e.key === "Enter") criminalInputRef.current?.click(); }}
-                      tabIndex={0}
-                      className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition duration-200 flex flex-col items-center gap-2 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <Upload className="w-5 h-5" />
-                      </div>
-                      <p className="text-sm font-medium text-foreground">Click to upload file</p>
-                      <p className="text-xs text-muted-foreground">PDF, JPG or PNG (max. 5MB)</p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-4 border border-primary/30 bg-primary/5 rounded-xl">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                          <File className="w-5 h-5" />
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                          <Upload className="w-4 h-4" />
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{criminalRecordFile.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatBytes(criminalRecordFile.size)}</p>
-                        </div>
+                        <p className="text-xs font-medium text-foreground">Upload Passport Scan</p>
+                        <p className="text-[10px] text-muted-foreground">PDF, JPG (max. 5MB)</p>
                       </div>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => {
-                          setCriminalRecordFile(null);
-                          if (criminalInputRef.current) criminalInputRef.current.value = "";
-                        }}
+                    ) : (
+                      <div className="flex items-center justify-between p-3 border border-primary/30 bg-primary/5 rounded-xl">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                            <File className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">{passportCopyFile.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{formatBytes(passportCopyFile.size)}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => {
+                            setPassportCopyFile(null);
+                            if (passportInputRef.current) passportInputRef.current.value = "";
+                          }}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* File Upload 2: Passport Size Photo */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground flex items-center justify-between">
+                      <span>Passport Size Photo</span>
+                      <span className="text-xs text-red-500 font-normal">Required</span>
+                    </label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">Recent passport photo with white background</p>
+
+                    <input 
+                      type="file" 
+                      ref={photoInputRef}
+                      className="hidden" 
+                      accept=".jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setPhotoFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+
+                    {!photoFile ? (
+                      <div 
+                        onClick={() => photoInputRef.current?.click()}
+                        onKeyDown={(e) => { if (e.key === "Enter") photoInputRef.current?.click(); }}
+                        tabIndex={0}
+                        className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition duration-200 flex flex-col items-center gap-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
                       >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <p className="text-xs font-medium text-foreground">Upload Photo</p>
+                        <p className="text-[10px] text-muted-foreground">JPG, PNG (max. 3MB)</p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-3 border border-primary/30 bg-primary/5 rounded-xl">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                            <File className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">{photoFile.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{formatBytes(photoFile.size)}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => {
+                            setPhotoFile(null);
+                            if (photoInputRef.current) photoInputRef.current.value = "";
+                          }}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* File Upload 3: Medical Certificate */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground flex items-center justify-between">
+                      <span>Medical Certificate</span>
+                      <span className="text-xs text-muted-foreground font-normal">Optional</span>
+                    </label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">Health examination certificate from an approved clinic</p>
+
+                    <input 
+                      type="file" 
+                      ref={medicalInputRef}
+                      className="hidden" 
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setMedicalCertFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+
+                    {!medicalCertFile ? (
+                      <div 
+                        onClick={() => medicalInputRef.current?.click()}
+                        onKeyDown={(e) => { if (e.key === "Enter") medicalInputRef.current?.click(); }}
+                        tabIndex={0}
+                        className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition duration-200 flex flex-col items-center gap-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <p className="text-xs font-medium text-foreground">Upload Medical Cert</p>
+                        <p className="text-[10px] text-muted-foreground">PDF, JPG (max. 5MB)</p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-3 border border-primary/30 bg-primary/5 rounded-xl">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                            <File className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">{medicalCertFile.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{formatBytes(medicalCertFile.size)}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => {
+                            setMedicalCertFile(null);
+                            if (medicalInputRef.current) medicalInputRef.current.value = "";
+                          }}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* File Upload 4: Criminal Record Clearance */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground flex items-center justify-between">
+                      <span>Criminal Record Clearance</span>
+                      <span className="text-xs text-muted-foreground font-normal">Optional</span>
+                    </label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">Police clearance certificate from your home country</p>
+
+                    <input 
+                      type="file" 
+                      ref={criminalInputRef}
+                      className="hidden" 
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setCriminalRecordFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+
+                    {!criminalRecordFile ? (
+                      <div 
+                        onClick={() => criminalInputRef.current?.click()}
+                        onKeyDown={(e) => { if (e.key === "Enter") criminalInputRef.current?.click(); }}
+                        tabIndex={0}
+                        className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition duration-200 flex flex-col items-center gap-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <p className="text-xs font-medium text-foreground">Upload Police Clearance</p>
+                        <p className="text-[10px] text-muted-foreground">PDF, JPG (max. 5MB)</p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-3 border border-primary/30 bg-primary/5 rounded-xl">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                            <File className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-foreground truncate">{criminalRecordFile.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{formatBytes(criminalRecordFile.size)}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => {
+                            setCriminalRecordFile(null);
+                            if (criminalInputRef.current) criminalInputRef.current.value = "";
+                          }}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-6 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-800 dark:text-amber-300">
-                  <strong>Note:</strong> Missing documents will not prevent submission, but your case handler will contact you to complete the file before processing begins.
+                  <strong>Note:</strong> Missing optional documents will not prevent submission, but your case handler will contact you to complete the file before processing begins.
                 </div>
 
-                <div className="flex justify-between pt-6">
+                {/* 2 Declaration Checkboxes */}
+                <div className="pt-4 border-t border-border space-y-4">
+                  <div className="flex items-start gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="declare-accurate"
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      checked={declaredAccurate}
+                      onChange={(e) => setDeclaredAccurate(e.target.checked)}
+                    />
+                    <label htmlFor="declare-accurate" className="text-xs text-muted-foreground cursor-pointer select-none leading-relaxed">
+                      I declare that all the information and documents provided in this application are true, accurate, and complete. I understand that providing false information can lead to rejection. *
+                    </label>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <input 
+                      type="checkbox" 
+                      id="agree-terms"
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    />
+                    <label htmlFor="agree-terms" className="text-xs text-muted-foreground cursor-pointer select-none leading-relaxed">
+                      I agree to the terms of service and authorize the immigration specialist team to process my personal data for the purpose of my Moldovan visa/work permit application. *
+                    </label>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-between pt-6 border-t border-border">
                   <Button type="button" variant="outline" onClick={() => setStep(1)}>
                     <ChevronLeft className="mr-2 h-4 w-4" /> Back
                   </Button>
-                  <Button type="submit" disabled={submitting}>
+                  <Button 
+                    type="submit" 
+                    disabled={submitting || !declaredAccurate || !agreedToTerms || !passportCopyFile || !photoFile}
+                  >
                     {submitting ? (
                       <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting…</>
                     ) : (
