@@ -24,6 +24,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    sourcemap: false, // 👈 এই লাইনটি যোগ করা হয়েছে sourcemap এরর এড়ানোর জন্য
   },
   server: {
     port,

@@ -15,18 +15,25 @@ function sanitizeString(val: unknown): string | null {
 }
 
 router.get("/applications", async (_req, res): Promise<void> => {
-  const apps = await db
-    .select()
-    .from(applicationsTable)
-    .orderBy(applicationsTable.createdAt);
-  res.json(apps.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })));
+  try {
+    const apps = await db
+      .select()
+      .from(applicationsTable)
+      .orderBy(applicationsTable.createdAt);
+    res.json(apps.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })));
+  } catch (err) {
+    logger.error({ err }, "Failed to fetch applications");
+    res.status(500).json({ error: "Failed to fetch applications" });
+  }
 });
 
 router.post("/applications", async (req, res): Promise<void> => {
   const body = req.body;
+  logger.info({ body }, "Incoming application request body"); // এটি লগে দেখাবে ফ্রন্টএন্ড থেকে কী কী ডাটা আসছে
 
   const jobId = Number(body.jobId);
   if (!Number.isInteger(jobId) || jobId < 0) {
+    logger.error({ jobId: body.jobId }, "Invalid or missing jobId");
     res.status(400).json({ error: "jobId must be a non-negative integer" });
     return;
   }
@@ -36,11 +43,11 @@ router.post("/applications", async (req, res): Promise<void> => {
   const email     = sanitizeString(body.email);
   const phone     = sanitizeString(body.phone);
 
-  if (!firstName) { res.status(400).json({ error: "firstName is required" }); return; }
-  if (!lastName)  { res.status(400).json({ error: "lastName is required" });  return; }
-  if (!email)     { res.status(400).json({ error: "email is required" });     return; }
-  if (!phone)     { res.status(400).json({ error: "phone is required" });     return; }
-  if (!isValidEmail(email)) { res.status(400).json({ error: "Invalid email address" }); return; }
+  if (!firstName) { logger.error("Missing firstName"); res.status(400).json({ error: "firstName is required" }); return; }
+  if (!lastName)  { logger.error("Missing lastName"); res.status(400).json({ error: "lastName is required" });  return; }
+  if (!email)     { logger.error("Missing email"); res.status(400).json({ error: "email is required" });     return; }
+  if (!phone)     { logger.error("Missing phone"); res.status(400).json({ error: "phone is required" });     return; }
+  if (!isValidEmail(email)) { logger.error({ email }, "Invalid email format"); res.status(400).json({ error: "Invalid email address" }); return; }
 
   const nationality     = sanitizeString(body.nationality);
   const dateOfBirth     = sanitizeString(body.dateOfBirth);
@@ -53,27 +60,39 @@ router.post("/applications", async (req, res): Promise<void> => {
   const coverLetter     = sanitizeString(body.coverLetter);
   const experience      = sanitizeString(body.experience);
 
-  const [app] = await db
-    .insert(applicationsTable)
-    .values({
-      jobId,
-      firstName,
-      lastName,
-      email,
-      phone,
-      nationality,
-      dateOfBirth,
-      passportNumber,
-      yearsExperience,
-      skills,
-      languages,
-      availableFrom,
-      resumeUrl,
-      coverLetter,
-      experience,
-      status: "pending",
-    })
-    .returning();
+  let app;
+  try {
+    // ডাটাবেজ সেভ করার চেষ্টা
+    const [insertedApp] = await db
+      .insert(applicationsTable)
+      .values({
+        jobId,
+        firstName,
+        lastName,
+        email,
+        phone,
+        nationality,
+        dateOfBirth,
+        passportNumber,
+        yearsExperience,
+        skills,
+        languages,
+        availableFrom,
+        resumeUrl,
+        coverLetter,
+        experience,
+        status: "pending",
+      })
+      .returning();
+
+    app = insertedApp;
+    logger.info({ appId: app.id }, "Application successfully saved to database");
+  } catch (dbError) {
+    // যদি ডাটাবেজ সেভ করতে ফেইল হয়, তাহলে এররটি লগে প্রিন্ট হবে কিন্তু কোড ক্র্যাশ করবে না
+    logger.error({ err: dbError }, "Database insertion failed!");
+    res.status(500).json({ error: "Database save failed. Please check server logs." });
+    return;
+  }
 
   const jobTitle = sanitizeString(body.jobTitle) ?? "your applied position";
 
@@ -82,13 +101,15 @@ router.post("/applications", async (req, res): Promise<void> => {
     to: email,
     subject: `Application Received — ${jobTitle}`,
     html: applicationReceivedEmail(firstName, jobTitle),
-  }).catch((err) => logger.error({ err }, "Failed to send application received email"));
-
+  }).then(() => {
+    logger.info({ to: email }, "User confirmation email sent successfully");
+  }).catch((err) => {
+    logger.error({ err }, "Failed to send user confirmation email");
+  });
 
   // ২. এডমিনকে ইমেইল নোটিফিকেশন পাঠানো (Non-blocking)
   const adminEmail = process.env.ADMIN_EMAIL;
   if (adminEmail) {
-    // এডমিন ইমেইলের জন্য সুন্দর একটি HTML বডি তৈরি করা হলো
     const adminHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
         <div style="background: #1a2744; padding: 20px; text-align: center; color: white;">
@@ -123,7 +144,11 @@ router.post("/applications", async (req, res): Promise<void> => {
       to: adminEmail,
       subject: `🚨 New Application: ${firstName} ${lastName} [${jobTitle}]`,
       html: adminHtml,
-    }).catch((err) => logger.error({ err }, "Failed to send admin notification email"));
+    }).then(() => {
+      logger.info({ to: adminEmail }, "Admin notification email sent successfully");
+    }).catch((err) => {
+      logger.error({ err }, "Failed to send admin notification email");
+    });
   } else {
     logger.warn("ADMIN_EMAIL is not set in Secrets. Admin notification email skipped.");
   }
