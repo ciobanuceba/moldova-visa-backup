@@ -14,9 +14,7 @@ function generateRef(): string {
   return `${prefix}-${year}-${rand}`;
 }
 
-// ======================================================
-// ধাপ ১: ইউজার ফর্ম সাবমিট রাউট (স্ট্যাটাস হবে: "pending_payment")
-// ======================================================
+// USER SUBMIT
 router.post("/work-permits", async (req, res): Promise<void> => {
   const body = req.body;
   logger.info({ body }, "Incoming work permit request body");
@@ -29,8 +27,7 @@ router.post("/work-permits", async (req, res): Promise<void> => {
   ];
 
   for (const field of required) {
-    if (!body[field] || typeof body[field] !== "string" || !body[field].trim()) {
-      logger.error({ field }, "Missing required field in work permit");
+    if (!body[field] || typeof body[field]!== "string" ||!body[field].trim()) {
       res.status(400).json({ error: `Missing required field: ${field}` });
       return;
     }
@@ -46,8 +43,8 @@ router.post("/work-permits", async (req, res): Promise<void> => {
 
   try {
     const [insertedPermit] = await db
-      .insert(workPermitsTable)
-      .values({
+     .insert(workPermitsTable)
+     .values({
         referenceNumber,
         firstName: body.firstName.trim(),
         lastName: body.lastName.trim(),
@@ -72,44 +69,23 @@ router.post("/work-permits", async (req, res): Promise<void> => {
         hasPhotos: Boolean(body.hasPhotos),
         hasEducationCert: Boolean(body.hasEducationCert),
         status: "pending_payment",
-        paymentStatus: "unpaid" as any,
       })
-      .returning();
+     .returning();
 
     permit = insertedPermit;
-    logger.info({ permitId: permit.id, referenceNumber }, "Work permit saved");
   } catch (dbError) {
     logger.error({ err: dbError }, "DB insertion failed");
     res.status(500).json({ error: "Database save failed" });
     return;
   }
 
-  const paymentInstructionHtml = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-      <div style="background: #f59e0b; padding: 20px; text-align: center; color: white;">
-        <h2 style="margin: 0;">আবেদন গ্রহণ করা হয়েছে (পেমেন্ট বাকি)</h2>
-        <p style="margin: 5px 0 0 0; color: #fef3c7; font-size: 14px;">Ref: ${referenceNumber}</p>
-      </div>
-      <div style="padding: 24px; background: #ffffff; color: #374151; line-height: 1.6;">
-        <p>প্রিয় ${permit.firstName},</p>
-        <p>আপনার আবেদনটি পেয়েছি। ভেরিফিকেশনের জন্য পেমেন্ট সম্পন্ন করুন।</p>
-      </div>
-    </div>
-  `;
+  const html = `<p>Hi ${permit.firstName}, Your application ${referenceNumber} received. Please complete payment.</p>`;
 
-  sendEmail({
-    to: permit.email,
-    subject: `Application Received (Payment Pending) — ${referenceNumber}`,
-    html: paymentInstructionHtml,
-  }).catch((err) => logger.error({ err }, "Failed to send email"));
+  sendEmail({ to: permit.email, subject: `Application Received — ${referenceNumber}`, html }).catch(()=>{});
 
   const adminEmail = process.env.ADMIN_EMAIL;
   if (adminEmail) {
-    sendEmail({
-      to: adminEmail,
-      subject: `[Pending Payment] ${permit.firstName} [${referenceNumber}]`,
-      html: `<p>New application ${permit.firstName} ${permit.lastName} - Ref: ${referenceNumber}</p>`,
-    }).catch(() => {});
+    sendEmail({ to: adminEmail, subject: `[New] ${permit.firstName} [${referenceNumber}]`, html: `<p>New: ${referenceNumber}</p>` }).catch(()=>{});
   }
 
   res.status(201).json({
@@ -123,60 +99,37 @@ router.post("/work-permits", async (req, res): Promise<void> => {
   });
 });
 
-// ======================================================
-// ধাপ ২ ও ৩: ADMIN Payment Accept - MAIN FIX
-// ======================================================
+// ADMIN APPROVE - MAIN FIX WITH RAW SQL
 router.patch("/work-permits/:id/approve-payment", async (req, res): Promise<void> => {
   const { id } = req.params;
-
+  const { pool } = await import("@workspace/db");
+  const client = await pool.connect();
   try {
-    // FIX: age sudhu status update hoto, ekhon paymentStatus o paid hobe
-    // Tai User Dashboard e ar Pending Review atke thakbe na
-    const [updatedPermit] = await db
-      .update(workPermitsTable)
-      .set({
-        status: "approved", // approved korlam jate user Approved dekhte pai
-        paymentStatus: "paid" as any,
-        paymentReviewedAt: new Date() as any,
-        paymentRejectionReason: null as any,
-      })
-      .where(eq(workPermitsTable.id, parseInt(id)))
-      .returning();
+    const { rows } = await client.query(
+      `UPDATE work_permits SET status = 'approved', payment_status = 'paid', payment_reviewed_at = NOW(), payment_rejection_reason = NULL WHERE id = $1 RETURNING *`,
+      [parseInt(id)]
+    );
 
-    if (!updatedPermit) {
+    if (rows.length === 0) {
       res.status(404).json({ error: "Application not found" });
       return;
     }
 
-    logger.info({ id }, "Payment approved and marked as paid/approved by admin");
-
-    const paymentSuccessHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-        <div style="background: #16a34a; padding: 20px; text-align: center; color: white;">
-          <h2 style="margin: 0;">পেমেন্ট সফলভাবে সম্পন্ন হয়েছে! 🎉</h2>
-          <p style="margin: 5px 0 0 0; color: #dcfce7; font-size: 14px;">Ref: ${updatedPermit.referenceNumber}</p>
-        </div>
-        <div style="padding: 24px; background: #ffffff; color: #374151; line-height: 1.6;">
-          <p>প্রিয় ${updatedPermit.firstName},</p>
-          <p>আপনার পেমেন্ট যাচাই করা হয়েছে। আপনার আবেদনটি এখন Approved!</p>
-          <p>ধন্যবাদ,<br>Moldova Visa Assist Team</p>
-        </div>
-      </div>
-    `;
+    const updatedPermit = rows[0];
+    logger.info({ id }, "Payment approved to paid+approved");
 
     sendEmail({
       to: updatedPermit.email,
-      subject: `Payment Confirmed & Approved — ${updatedPermit.referenceNumber}`,
-      html: paymentSuccessHtml,
-    }).catch((err) => logger.error({ err }, "Failed to send confirmation email"));
+      subject: `Payment Confirmed & Approved — ${updatedPermit.reference_number}`,
+      html: `<p>Hi ${updatedPermit.first_name}, your payment for ${updatedPermit.reference_number} is approved! Status: Approved</p>`,
+    }).catch(()=>{});
 
-    res.status(200).json({
-      message: "Payment approved successfully",
-      permit: updatedPermit,
-    });
+    res.status(200).json({ message: "Payment approved", permit: updatedPermit });
   } catch (error) {
-    logger.error({ err: error }, "Error updating payment status");
+    logger.error({ err: error }, "Approve error");
     res.status(500).json({ error: "Internal server error" });
+  } finally {
+    client.release();
   }
 });
 
