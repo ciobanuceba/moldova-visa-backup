@@ -15,8 +15,8 @@ import { requireApplicant } from "../middleware/requireApplicant";
 
 const router: IRouter = Router();
 
-const WORK_PERMIT_FEE_EUR = 9900; // €99.00 in cents
-const WORK_PERMIT_FEE_LABEL = "€99.00";
+const WORK_PERMIT_FEE_EUR = 17000; // €99.00 in cents
+const WORK_PERMIT_FEE_LABEL = "€120.00";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) {
