@@ -26,29 +26,29 @@ const client = await pool.connect();
 try {
 const { rows: appStats } = await client.query(`
 SELECT
-COUNT(*)::int                                       AS total,
-COUNT(*) FILTER (WHERE status = 'pending')::int        AS pending,
-COUNT(*) FILTER (WHERE status = 'approved')::int       AS approved,
-COUNT(*) FILTER (WHERE status = 'rejected')::int       AS rejected
+COUNT(*)::int AS total,
+COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
+COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected
 FROM applications
 `);
 
 const { rows: wpStats } = await client.query(`
 SELECT
-COUNT(*)::int                                                AS total,
-COUNT(*) FILTER (WHERE status = 'submitted')::int           AS submitted,
-COUNT(*) FILTER (WHERE status = 'payment_confirmed')::int   AS payment_confirmed,
-COUNT(*) FILTER (WHERE status = 'approved')::int            AS approved,
-COUNT(*) FILTER (WHERE status = 'rejected')::int            AS rejected,
-COUNT(*) FILTER (WHERE payment_status = 'paid')::int        AS paid_count
+COUNT(*)::int AS total,
+COUNT(*) FILTER (WHERE status = 'submitted')::int AS submitted,
+COUNT(*) FILTER (WHERE status = 'payment_confirmed')::int AS payment_confirmed,
+COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
+COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected,
+COUNT(*) FILTER (WHERE payment_status = 'paid')::int AS paid_count
 FROM work_permits
 `);
 
 const { rows: appsByDay } = await client.query(`
 SELECT
 TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
-created_at::date                                  AS date,
-COUNT(*)::int                                     AS count
+created_at::date AS date,
+COUNT(*)::int AS count
 FROM applications
 WHERE created_at >= NOW() - INTERVAL '30 days'
 GROUP BY date, day
@@ -58,7 +58,7 @@ ORDER BY date ASC
 const { rows: byCategory } = await client.query(`
 SELECT
 COALESCE(j.category, 'General') AS category,
-COUNT(*)::int                    AS count
+COUNT(*)::int AS count
 FROM applications a
 LEFT JOIN jobs j ON j.id = a.job_id
 GROUP BY category
@@ -95,8 +95,8 @@ LIMIT 10
 const { rows: registrations } = await client.query(`
 SELECT
 TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
-created_at::date                                  AS date,
-COUNT(*)::int                                     AS count
+created_at::date AS date,
+COUNT(*)::int AS count
 FROM applicant_users
 WHERE created_at >= NOW() - INTERVAL '30 days'
 GROUP BY date, day

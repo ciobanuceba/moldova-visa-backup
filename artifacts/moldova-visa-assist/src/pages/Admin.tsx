@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useListApplications, getListApplicationsQueryKey, useCreateJob, useListJobs, getListJobsQueryKey } from "@workspace/api-client-react";
+import { useListApplications, getListApplicationsQueryKey, useListJobs, getListJobsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -131,30 +131,13 @@ export default function Admin() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  // ── Not logged in guard ───────────────────────────────────────────────────
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-muted/20 flex items-center justify-center px-4">
-        <div className="bg-card border rounded-xl shadow-md p-10 max-w-md w-full text-center">
-          <div className="flex items-center justify-center w-14 h-14 bg-primary/10 rounded-full mx-auto mb-4">
-            <Lock className="w-7 h-7 text-primary" />
-          </div>
-          <h2 className="text-2xl font-bold text-primary mb-2">Admin Access Required</h2>
-          <p className="text-muted-foreground mb-6">Please sign in with your admin credentials.</p>
-          <Button asChild className="w-full"><Link href="/admin/login">Go to Admin Login</Link></Button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Data hooks (only when admin) ──────────────────────────────────────────
+  // Keep hooks unconditional so logging in/out does not change the hook order.
   const { data: applications, isLoading: appsLoading } = useListApplications({
-    query: { queryKey: getListApplicationsQueryKey() }
+    query: { queryKey: getListApplicationsQueryKey(), enabled: isAdmin }
   });
   const { data: jobs, isLoading: jobsLoading } = useListJobs(undefined, {
-    query: { queryKey: getListJobsQueryKey() }
+    query: { queryKey: getListJobsQueryKey(), enabled: isAdmin }
   });
-  const createJob = useCreateJob();
   const form = useForm<z.infer<typeof jobSchema>>({
     resolver: zodResolver(jobSchema),
     defaultValues: { title: "", category: "", location: "", type: "Full-time", description: "", requirements: "", salary: "", benefits: "" },
@@ -162,9 +145,9 @@ export default function Admin() {
 
   // ── Load stats on mount ───────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isAdmin) return;
     loadStats();
-  }, [user]);
+  }, [user, isAdmin]);
 
   async function loadStats() {
     if (!user) return;
@@ -186,17 +169,27 @@ export default function Admin() {
     } finally { setWpLoading(false); }
   }
 
-  function onSubmit(values: z.infer<typeof jobSchema>) {
-    createJob.mutate({ data: values }, {
-      onSuccess: () => {
-        toast({ title: "Job Created", description: "Published successfully." });
-        form.reset();
-        queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
-        setActiveTab("jobs");
-        loadStats();
-      },
-      onError: () => toast({ title: "Error", description: "Failed to create job listing.", variant: "destructive" }),
-    });
+  async function onSubmit(values: z.infer<typeof jobSchema>) {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/admin/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: "Error", description: data.error || "Failed to create job listing.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Job Created", description: "Published successfully." });
+      form.reset();
+      await queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+      setActiveTab("jobs");
+      loadStats();
+    } catch {
+      toast({ title: "Error", description: "Could not connect to the server.", variant: "destructive" });
+    }
   }
 
   async function handleApproveReject() {
@@ -314,6 +307,22 @@ export default function Admin() {
       setWorkPermits(prev => prev.map(wp => wp.id === id ? { ...wp, status: action === "approve" ? "approved" : "rejected" } : wp));
       loadStats();
     }
+  }
+
+  // ── Not logged in guard ───────────────────────────────────────────────────
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex items-center justify-center px-4">
+        <div className="bg-card border rounded-xl shadow-md p-10 max-w-md w-full text-center">
+          <div className="flex items-center justify-center w-14 h-14 bg-primary/10 rounded-full mx-auto mb-4">
+            <Lock className="w-7 h-7 text-primary" />
+          </div>
+          <h2 className="text-2xl font-bold text-primary mb-2">Admin Access Required</h2>
+          <p className="text-muted-foreground mb-6">Please sign in with your admin credentials.</p>
+          <Button asChild className="w-full"><Link href="/admin/login">Go to Admin Login</Link></Button>
+        </div>
+      </div>
+    );
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -636,6 +645,104 @@ export default function Admin() {
           </div>
         </TabsContent>
 
+        {/* ── Payments Tab ─────────────────────────────────────────────── */}
+        <TabsContent value="payments">
+          <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Job / Employer</TableHead>
+                  <TableHead>Receipt</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paymentsLoading ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8">Loading payment receipts…</TableCell></TableRow>
+                ) : payments.length > 0 ? (
+                  payments.map((payment) => (
+                    <TableRow key={payment.id}>
+                      <TableCell className="font-mono text-xs">{payment.reference_number}</TableCell>
+                      <TableCell>
+                        <div className="font-medium text-sm">{payment.first_name} {payment.last_name}</div>
+                        <div className="text-xs text-muted-foreground">{payment.email}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{payment.job_title}</div>
+                        <div className="text-xs text-muted-foreground">{payment.employer_name}, {payment.employer_country}</div>
+                      </TableCell>
+                      <TableCell>
+                        {payment.receipt_url ? (
+                          <a
+                            href={payment.receipt_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm text-primary underline underline-offset-2 hover:text-primary/80"
+                          >
+                            View receipt
+                          </a>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Not available</span>
+                        )}
+                        {payment.payment_method && (
+                          <div className="text-xs text-muted-foreground capitalize">{payment.payment_method}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={payment.payment_status === "paid" ? "default" : payment.payment_status === "rejected" ? "destructive" : "outline"}
+                          className="capitalize text-xs"
+                        >
+                          {payment.payment_status?.replace("_", " ") || "pending"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {payment.receipt_uploaded_at
+                          ? format(new Date(payment.receipt_uploaded_at), "MMM d, yyyy")
+                          : format(new Date(payment.created_at), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        {payment.payment_status !== "paid" && payment.payment_status !== "rejected" && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-green-600 border-green-200 hover:bg-green-50"
+                              disabled={paymentActionLoading}
+                              onClick={() => handlePaymentApprove(payment.id)}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 border-red-200 hover:bg-red-50"
+                              disabled={paymentActionLoading}
+                              onClick={() => { setRejectPayment(payment); setRejectReason(""); }}
+                            >
+                              <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No payment receipts found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
         {/* ── Jobs Tab ──────────────────────────────────────────────────── */}
         <TabsContent value="jobs">
           <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
@@ -678,7 +785,60 @@ export default function Admin() {
 
         {/* ── Create Job Tab ────────────────────────────────────────────── */}
         <TabsContent value="create">
-          {/* Form and Dialog components remain intact under this */}
+          <div className="bg-card border rounded-xl shadow-sm p-6 max-w-4xl">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-primary">Post a New Job</h2>
+              <p className="text-sm text-muted-foreground mt-1">Create a verified opportunity for applicants.</p>
+            </div>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <FormField control={form.control} name="title" render={({ field }) => (
+                    <FormItem><FormLabel>Job Title</FormLabel><FormControl><Input placeholder="e.g. Senior Electrician" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="category" render={({ field }) => (
+                    <FormItem><FormLabel>Category</FormLabel><FormControl><Input placeholder="e.g. Construction" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="location" render={({ field }) => (
+                    <FormItem><FormLabel>Location</FormLabel><FormControl><Input placeholder="e.g. Berlin, Germany" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="type" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Employment Type</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="Full-time">Full-time</SelectItem>
+                          <SelectItem value="Part-time">Part-time</SelectItem>
+                          <SelectItem value="Contract">Contract</SelectItem>
+                          <SelectItem value="Seasonal">Seasonal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="salary" render={({ field }) => (
+                    <FormItem><FormLabel>Salary</FormLabel><FormControl><Input placeholder="e.g. €2,500–€3,000/month" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="benefits" render={({ field }) => (
+                    <FormItem><FormLabel>Benefits <span className="text-muted-foreground font-normal">(Optional)</span></FormLabel><FormControl><Input placeholder="e.g. Accommodation, meals" {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+                <FormField control={form.control} name="description" render={({ field }) => (
+                  <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea rows={5} placeholder="Describe the role and responsibilities..." {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="requirements" render={({ field }) => (
+                  <FormItem><FormLabel>Requirements</FormLabel><FormControl><Textarea rows={4} placeholder="List the skills, experience, and documents required..." {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <div className="flex justify-end gap-3">
+                  <Button type="button" variant="outline" onClick={() => form.reset()}>Clear</Button>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? "Publishing…" : "Publish Job"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </div>
         </TabsContent>
       </Tabs>
 
