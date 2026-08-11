@@ -88,16 +88,16 @@ router.post("/work-permits", async (req, res): Promise<void> => {
   const paymentInstructionHtml = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
       <div style="background: #f59e0b; padding: 20px; text-align: center; color: white;">
-        <h2 style="margin: 0;">আবেদন গ্রহণ করা হয়েছে (পেমেন্ট বাকি)</h2>
+        <h2 style="margin: 0;">Application Received — Payment Pending / Cererea a fost primită</h2>
         <p style="margin: 5px 0 0 0; color: #fef3c7; font-size: 14px;">Ref: ${referenceNumber}</p>
       </div>
       <div style="padding: 24px; background: #ffffff; color: #374151; line-height: 1.6;">
-        <p>প্রিয় ${permit.firstName},</p>
-        <p>আপনার ওয়ার্ক পারমিট আবেদনটি আমরা সফলভাবে পেয়েছি। আপনার আবেদনটি ভেরিফিকেশন ও পরবর্তী প্রসেসিংয়ে পাঠানোর জন্য অনুগ্রহ করে নির্ধারিত ফি প্রদান সম্পন্ন করুন।</p>
+        <p>Dear ${permit.firstName}, / Stimate(ă) ${permit.firstName},</p>
+        <p>We have successfully received your work permit application. Cererea dumneavoastră pentru permis de muncă a fost înregistrată. To continue verification and processing, please complete the required fee payment.</p>
         <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px;">
-          <strong>পেমেন্ট করার নিয়ম:</strong> আমাদের দেওয়া পেমেন্ট মাধ্যমে আপনার ফি জমা দিন। পেমেন্ট সম্পন্ন করে আমাদের কনফার্ম করার পর আপনার ফাইলটি সরাসরি রিভিউতে চলে যাবে।
+          <strong>Payment instructions / Instrucțiuni de plată:</strong> Please submit the fee using the payment method provided. După confirmarea plății, dosarul dumneavoastră va intra direct în review.
         </div>
-        <p>ধন্যবাদ,<br>Moldova Visa Assist Team</p>
+        <p>Cu stimă / Best regards,<br>Moldova Visa Assist Team</p>
       </div>
     </div>
   `;
@@ -170,14 +170,14 @@ router.patch("/work-permits/:id/approve-payment", async (req, res): Promise<void
     const paymentSuccessHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
         <div style="background: #16a34a; padding: 20px; text-align: center; color: white;">
-          <h2 style="margin: 0;">পেমেন্ট সফলভাবে সম্পন্ন হয়েছে! 🎉</h2>
+        <h2 style="margin: 0;">Payment Confirmed &amp; Under Review / Plata a fost confirmată 🎉</h2>
           <p style="margin: 5px 0 0 0; color: #dcfce7; font-size: 14px;">Ref: ${updatedPermit.referenceNumber}</p>
         </div>
         <div style="padding: 24px; background: #ffffff; color: #374151; line-height: 1.6;">
-          <p>প্রিয় ${updatedPermit.firstName},</p>
-          <p>আপনার আবেদনের বিপরীতে পেমেন্টটি আমরা সফলভাবে যাচাই এবং গ্রহণ করেছি।</p>
-          <p>আপনার আবেদনটি বর্তমানে আমাদের ইমিগ্রেশন বিশেষজ্ঞদের দ্বারা রিভিউ করা হচ্ছে। পরবর্তী যেকোনো আপডেটের জন্য আমরা আপনার সাথে যোগাযোগ করব।</p>
-          <p>ধন্যবাদ,<br>Moldova Visa Assist Team</p>
+        <p>Dear ${updatedPermit.firstName}, / Stimate(ă) ${updatedPermit.firstName},</p>
+        <p>We have successfully verified and accepted the payment for your application. Plata pentru cererea dumneavoastră a fost verificată și acceptată.</p>
+        <p>Your application is now being reviewed by our immigration specialists. Dosarul este în verificare, iar vă vom contacta pentru orice actualizare.</p>
+        <p>Cu stimă / Best regards,<br>Moldova Visa Assist Team</p>
         </div>
       </div>
     `;
