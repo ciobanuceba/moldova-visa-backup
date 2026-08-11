@@ -399,7 +399,7 @@ export default function Admin() {
                 {/* Applications by category */}
                 <div className="bg-card border rounded-xl p-6 lg:col-span-2">
                   <h3 className="font-semibold text-primary mb-4">Applications by Category</h3>
-                  {stats.charts.byCategory.length === 0 ? (
+                  {!Array.isArray(stats.charts.byCategory) || stats.charts.byCategory.length === 0 ? (
                     <div className="flex items-center justify-center h-44 text-muted-foreground text-sm">No data yet</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={200}>
@@ -445,7 +445,7 @@ export default function Admin() {
                 <div className="bg-card border rounded-xl p-6">
                   <h3 className="font-semibold text-primary mb-1">Work Permits by Country</h3>
                   <p className="text-xs text-muted-foreground mb-4">Employer country distribution</p>
-                  {stats.charts.byCountry.length === 0 ? (
+                  {!Array.isArray(stats.charts.byCountry) || stats.charts.byCountry.length === 0 ? (
                     <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">No work permits yet</div>
                   ) : (
                     <ResponsiveContainer width="100%" height={200}>
@@ -470,7 +470,7 @@ export default function Admin() {
                 <h3 className="font-semibold text-primary mb-4 flex items-center gap-2">
                   <Activity className="w-4 h-4" /> Recent Activity
                 </h3>
-                {stats.recentActivity.length === 0 ? (
+                {!Array.isArray(stats.recentActivity) || stats.recentActivity.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No recent activity.</p>
                 ) : (
                   <div className="space-y-3">

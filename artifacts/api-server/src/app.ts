@@ -1,4 +1,6 @@
 import express, { type Express } from "express";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { logger } from "./lib/logger";
@@ -49,5 +51,23 @@ runMigrations()
   .catch((err) => logger.error({ err }, "Migration failed (non-fatal)"));
 
 app.use("/api", router);
+
+// In production, serve the built SPA from the same process as the API.
+// This keeps the published app on one public port while the dev workflows
+// continue to use separate frontend and API servers.
+const frontendDist = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../moldova-visa-assist/dist/public",
+);
+app.use(express.static(frontendDist));
+app.use((req, res, next) => {
+  if (req.method !== "GET" || req.path.startsWith("/api")) {
+    next();
+    return;
+  }
+  res.sendFile(path.join(frontendDist, "index.html"), (err) => {
+    if (err) next(err);
+  });
+});
 
 export default app;

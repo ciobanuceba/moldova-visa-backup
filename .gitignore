@@ -51,3 +51,6 @@ Thumbs.db
 # DB dumps (may contain PII) - do not commit
 *.sql
 *_backup.sql*
+
+# Local Netlify folder
+.netlify

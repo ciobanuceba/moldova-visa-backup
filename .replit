@@ -31,8 +31,14 @@ externalPort = 8081
 localPort = 8082
 externalPort = 3001
 
+[[ports]]
+localPort = 8088
+externalPort = 3003
+
 [deployment]
-deploymentTarget = "cloudrun"
+deploymentTarget = "autoscale"
+run = ["pnpm", "--filter", "@workspace/api-server", "run", "start"]
+build = ["pnpm", "run", "build"]
 
 [userenv]
 
