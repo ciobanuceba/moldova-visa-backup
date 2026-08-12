@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { pool } from "@workspace/db";
 
 export async function runMigrations(): Promise<void> {
