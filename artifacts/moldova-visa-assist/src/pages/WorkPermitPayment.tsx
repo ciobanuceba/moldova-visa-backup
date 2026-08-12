@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import {
   ShieldCheck, Copy, Check, UploadCloud, Clock, CheckCircle2, XCircle,
-  Loader2, ArrowLeft, QrCode, Mail,
+  Loader2, ArrowLeft, QrCode, Mail, CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,6 +49,7 @@ export default function WorkPermitPayment() {
   const [file, setFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [stripeLoading, setStripeLoading] = useState(false);
 
   useEffect(() => {
     if (!isApplicant) { navigate("/login"); return; }
@@ -114,6 +115,36 @@ export default function WorkPermitPayment() {
       loadInfo();
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function startStripeCheckout() {
+    if (!user || !id) return;
+    setStripeLoading(true);
+    try {
+      const res = await fetch("/api/payments/work-permit/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
+        body: JSON.stringify({ workPermitId: Number(id) }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.url) {
+        toast({
+          title: "Stripe checkout unavailable",
+          description: result.error || "Please try again or use a manual payment method.",
+          variant: "destructive",
+        });
+        return;
+      }
+      window.location.assign(result.url);
+    } catch {
+      toast({
+        title: "Payment connection error",
+        description: "Could not connect to Stripe. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setStripeLoading(false);
     }
   }
 
@@ -190,6 +221,31 @@ export default function WorkPermitPayment() {
 
         {canSubmit && (
           <>
+            {/* Stripe checkout */}
+            <section className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-border bg-muted/30">
+                <h2 className="font-serif font-bold text-foreground">Pay securely with Stripe</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Fast card payment with secure Stripe Checkout</p>
+              </div>
+              <div className="p-6">
+                <Button
+                  type="button"
+                  className="w-full bg-[#635bff] hover:bg-[#5148e5] text-white"
+                  disabled={stripeLoading}
+                  onClick={startStripeCheckout}
+                >
+                  {stripeLoading ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Opening secure checkout…</>
+                  ) : (
+                    <><CreditCard className="w-4 h-4 mr-2" /> Pay €120 by card</>
+                  )}
+                </Button>
+                <p className="text-center text-xs text-muted-foreground mt-3">
+                  Your card details are handled securely by Stripe.
+                </p>
+              </div>
+            </section>
+
             {/* Payment methods */}
             <section className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
               <div className="px-6 py-5 border-b border-border bg-muted/30">

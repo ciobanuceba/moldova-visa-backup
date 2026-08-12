@@ -170,7 +170,7 @@ export default function ApplicantDashboard() {
                       >
                         <Link href={`/work-permit/${wp.id}/pay`}>
                           <CreditCard className="w-4 h-4 mr-2" />
-                          {wp.payment_status === "rejected" ? "Resubmit Payment" : "Pay Fee (€99)"}
+                          {wp.payment_status === "rejected" ? "Resubmit Payment" : "Pay Fee (€120)"}
                         </Link>
                       </Button>
                     )}

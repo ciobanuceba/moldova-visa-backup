@@ -15,7 +15,7 @@ import { requireApplicant } from "../middleware/requireApplicant";
 
 const router: IRouter = Router();
 
-const WORK_PERMIT_FEE_EUR = 17000; // €99.00 in cents
+const WORK_PERMIT_FEE_EUR = 12000; // €120.00 in cents
 const WORK_PERMIT_FEE_LABEL = "€120.00";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
@@ -117,18 +117,24 @@ router.post("/payments/work-permit/:id/receipt", requireApplicant, async (req, r
 });
 
 // Stripe checkout
-router.post("/payments/work-permit/checkout", async (req, res): Promise<void> => {
+router.post("/payments/work-permit/checkout", requireApplicant, async (req, res): Promise<void> => {
   const { workPermitId } = req.body ?? {};
   if (!workPermitId) { res.status(400).json({ error: "workPermitId required" }); return; }
+  const { email } = (req as any).applicant;
 
   const client = await pool.connect();
   try {
-    const { rows } = await client.query(`SELECT id, reference_number, first_name, email FROM work_permits WHERE id = $1`, [workPermitId]);
+    const { rows } = await client.query(
+      `SELECT id, reference_number, first_name, email
+       FROM work_permits WHERE id = $1 AND email = $2`,
+      [workPermitId, email],
+    );
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     const permit = rows[0];
 
     const stripe = getUncachableStripeClient();
-    const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:80";
+    const domain = (process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "").split(",")[0];
+    const baseUrl = domain ? `https://${domain}` : "http://localhost:5000";
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -138,6 +144,10 @@ router.post("/payments/work-permit/checkout", async (req, res): Promise<void> =>
       }],
       mode: "payment",
       customer_email: permit.email,
+      metadata: { work_permit_id: String(permit.id) },
+      payment_intent_data: {
+        metadata: { work_permit_id: String(permit.id) },
+      },
       success_url: `${baseUrl}/work-permit/payment-success?ref=${permit.reference_number}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/work-permit/payment-cancel?ref=${permit.reference_number}`,
     });

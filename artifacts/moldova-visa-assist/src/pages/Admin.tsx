@@ -364,7 +364,7 @@ export default function Admin() {
                 <StatCard icon={<ClipboardList className="w-5 h-5" />} label="Total Applications" value={stats.applications.total} sub={`${stats.applications.pending} pending`} />
                 <StatCard icon={<TrendingUp className="w-5 h-5" />} label="Approval Rate" value={`${stats.applications.approvalRate}%`} sub={`${stats.applications.approved} approved`} color="green" />
                 <StatCard icon={<FileText className="w-5 h-5" />} label="Work Permits" value={stats.workPermits.total} sub={`${stats.workPermits.paidCount} paid`} color="blue" />
-                <StatCard icon={<Euro className="w-5 h-5" />} label="Permit Revenue" value={`€${stats.workPermits.revenue}`} sub={`${stats.workPermits.paidCount} × €99`} color="yellow" />
+                <StatCard icon={<Euro className="w-5 h-5" />} label="Permit Revenue" value={`€${stats.workPermits.revenue}`} sub={`${stats.workPermits.paidCount} × €120`} color="yellow" />
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

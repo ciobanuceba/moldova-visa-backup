@@ -108,7 +108,7 @@ const wps = wpStats[0];
 const approvalRate = apps.total > 0
 ? Math.round((apps.approved / apps.total) * 100)
 : 0;
-const revenue = wps.paid_count * 99;
+const revenue = wps.paid_count * 120;
 
 res.json({
 applications: {
