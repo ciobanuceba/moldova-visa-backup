@@ -1,5 +1,7 @@
 [build]
+  base = "artifacts/moldova-visa-assist"
   publish = "dist/public"
+  command = "pnpm --filter @workspace/moldova-visa-assist... run build"
 
 [[redirects]]
   from = "/*"
