@@ -1,4 +1,4 @@
-modules = ["python-3.11", "nodejs-24"]
+modules = ["nodejs-24"]
 [nix]
 channel = "stable-25_05"
 
@@ -34,6 +34,10 @@ externalPort = 3001
 [[ports]]
 localPort = 8088
 externalPort = 3003
+
+[[ports]]
+localPort = 8089
+externalPort = 4200
 
 [deployment]
 deploymentTarget = "autoscale"
