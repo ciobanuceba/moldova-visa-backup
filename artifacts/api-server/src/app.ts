@@ -14,14 +14,14 @@ const app: Express = express();
 app.post(
   "/api/stripe/webhook",
   express.raw({ type: "application/json" }),
-  async (req, res) => {
+  async (req: any, res: any) => {
     const signature = req.headers["stripe-signature"];
     if (!signature) {
       res.status(400).json({ error: "Missing stripe-signature" });
       return;
     }
     try {
-      const sig = Array.isArray(signature) ? signature[0] : signature;
+      const sig = Array.isArray(signature)? signature[0] : signature;
       await WebhookHandlers.processWebhook(req.body as Buffer, sig);
       res.status(200).json({ received: true });
     } catch (err: any) {
@@ -33,11 +33,11 @@ app.post(
 
 // ── General middleware ────────────────────────────────────────────────────────
 app.use(
-  pinoHttp({
+  (pinoHttp as any)({
     logger,
     serializers: {
-      req(req) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
-      res(res) { return { statusCode: res.statusCode }; },
+      req(req: any) { return { id: req.id, method: req.method, url: req.url?.split("?")[0] }; },
+      res(res: any) { return { statusCode: res.statusCode }; },
     },
   })
 );
@@ -47,25 +47,22 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── DB migrations on startup ──────────────────────────────────────────────────
 runMigrations()
-  .then(() => logger.info("Migrations complete"))
-  .catch((err) => logger.error({ err }, "Migration failed (non-fatal)"));
+ .then(() => logger.info("Migrations complete"))
+ .catch((err) => logger.error({ err }, "Migration failed (non-fatal)"));
 
 app.use("/api", router);
 
-// In production, serve the built SPA from the same process as the API.
-// This keeps the published app on one public port while the dev workflows
-// continue to use separate frontend and API servers.
 const frontendDist = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../moldova-visa-assist/dist/public",
 );
 app.use(express.static(frontendDist));
-app.use((req, res, next) => {
-  if (req.method !== "GET" || req.path.startsWith("/api")) {
+app.use((req: any, res: any, next: any) => {
+  if (req.method!== "GET" || req.path.startsWith("/api")) {
     next();
     return;
   }
-  res.sendFile(path.join(frontendDist, "index.html"), (err) => {
+  res.sendFile(path.join(frontendDist, "index.html"), (err: any) => {
     if (err) next(err);
   });
 });
