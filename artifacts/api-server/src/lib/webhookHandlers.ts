@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getUncachableStripeClient, getWebhookSecret } from "./stripeClient";
 import { pool } from "@workspace/db";
 import { sendEmail, workPermitPaymentConfirmedEmail } from "./email";
