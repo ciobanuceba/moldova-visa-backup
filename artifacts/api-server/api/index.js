@@ -1,8 +1,15 @@
-import express from 'express';
-import cors from 'cors';
-const app = express();
-app.use(cors());
-app.use(express.json());
-app.get('/', (req,res)=>res.json({status:'ok'}));
-app.get('/api/health',(req,res)=>res.json({ok:true}));
-export default app;
+export default function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  return res.json({ 
+    status: 'ok', 
+    message: 'Moldova Visa API Running',
+    path: req.url 
+  });
+}
