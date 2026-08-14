@@ -1,13 +1,19 @@
 [build]
-  base = "moldova-visa"
-  command = "npm run build"
-  publish = ".next"
+  base = "."
+  command = "pnpm --filter @workspace/moldova-visa-assist run build"
+  publish = "artifacts/moldova-visa-assist/dist/public"
 
 [build.environment]
   NODE_VERSION = "22"
+  PNPM_VERSION = "10"
   NPM_FLAGS = "--include=dev"
 
-[[plugins]]
-  package = "@netlify/next"
+[dev]
+  command = "pnpm --filter @workspace/moldova-visa-assist run dev"
+  port = 5000
 
-# Do not add a catch-all /index.html redirect: Next.js routing is handled by the Netlify Next.js runtime.
+# SPA fallback for the Vite/React application.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
