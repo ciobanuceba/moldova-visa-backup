@@ -4,6 +4,61 @@ import { pool } from "@workspace/db";
 export async function runMigrations(): Promise<void> {
   const client = await pool.connect();
   try {
+    // Production Render databases can start empty. Create the base tables first
+    // so the ALTER TABLE migrations below work on a fresh database as well as
+    // on an existing database. All statements are non-destructive.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS jobs (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        location TEXT NOT NULL,
+        type TEXT NOT NULL,
+        description TEXT NOT NULL,
+        requirements TEXT NOT NULL,
+        salary TEXT NOT NULL,
+        benefits TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS applications (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        nationality TEXT,
+        date_of_birth TEXT,
+        passport_number TEXT,
+        years_experience TEXT,
+        skills TEXT,
+        languages TEXT,
+        available_from TEXT,
+        resume_url TEXT,
+        cover_letter TEXT,
+        experience TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        admin_notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT,
+        subject TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
     await client.query(`
       ALTER TABLE applications
         ADD COLUMN IF NOT EXISTS nationality TEXT,
