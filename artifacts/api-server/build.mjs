@@ -14,10 +14,10 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    // Build the Express app as a serverless-compatible module.
-    // The previous entry point started app.listen(), which is not appropriate
-    // for Vercel/Netlify function execution.
-    entryPoints: [path.resolve(artifactDir, "src/app.ts")],
+    // Render runs the API as a normal Node web service, so the entrypoint
+    // must start the Express listener. The app.ts module is intentionally
+    // serverless-compatible and does not call app.listen().
+    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     platform: "node",
     bundle: true,
     format: "esm",
