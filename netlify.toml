@@ -1,0 +1,18 @@
+[build]
+  base = "moldova-visa"
+  command = "npm run build"
+  publish = "moldova-visa/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--include=dev"
+
+[[plugins]]
+  package = "@netlify/next"
+
+# Next.js handles client-side routing; this rule keeps non-API routes working.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
