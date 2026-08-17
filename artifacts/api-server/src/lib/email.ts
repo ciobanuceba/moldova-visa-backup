@@ -1,45 +1,35 @@
-import nodemailer, { type Transporter } from "nodemailer";
+import { Resend } from "resend";
 import { logger } from "./logger";
 
-let cachedTransport: { transport: Transporter; from: string } | null | undefined;
+let cachedResend: Resend | null | undefined;
+let cachedFrom: string | null | undefined;
 
-function getTransport(): { transport: Transporter; from: string } | null {
-  if (cachedTransport !== undefined) return cachedTransport;
-
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from = process.env.EMAIL_FROM || "noreply@moldova-visa-assist.replit.app";
-
-  if (!host || !user || !pass) {
-    logger.warn("SMTP not configured (SMTP_HOST/SMTP_USER/SMTP_PASS missing) — emails will be logged to console only");
-    cachedTransport = null;
-    return cachedTransport;
+function getResend(): { resend: Resend; from: string } | null {
+  if (cachedResend !== undefined) {
+    if (!cachedResend) return null;
+    return { resend: cachedResend, from: cachedFrom! };
   }
 
-  const transport = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM || "Moldova Visa Assist <onboarding@resend.dev>";
 
-  cachedTransport = { transport, from };
-  return cachedTransport;
+  if (!apiKey) {
+    logger.warn("RESEND_API_KEY missing — emails will be logged to console only");
+    cachedResend = null;
+    cachedFrom = null;
+    return null;
+  }
+
+  cachedResend = new Resend(apiKey);
+  cachedFrom = from;
+  return { resend: cachedResend, from };
 }
 
 export async function verifyEmailTransport(): Promise<boolean> {
-  const config = getTransport();
+  const config = getResend();
   if (!config) return false;
-  try {
-    await config.transport.verify();
-    logger.info({ host: process.env.SMTP_HOST, from: config.from }, "SMTP connection verified — email sending is live");
-    return true;
-  } catch (err) {
-    logger.error({ err }, "SMTP verification failed — check SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS");
-    return false;
-  }
+  logger.info({ from: config.from }, "Resend is configured — email sending is live");
+  return true;
 }
 
 interface EmailOptions {
@@ -50,24 +40,27 @@ interface EmailOptions {
 }
 
 export async function sendEmail(opts: EmailOptions): Promise<void> {
-  const config = getTransport();
+  const config = getResend();
 
   if (!config) {
-    logger.info({ to: opts.to, subject: opts.subject }, "Email (SMTP not configured — logged only)");
+    logger.info({ to: opts.to, subject: opts.subject }, "Email (Resend not configured — logged only)");
     return;
   }
 
   try {
-    const info = await config.transport.sendMail({
+    const result = await config.resend.emails.send({
       from: config.from,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
-      attachments: opts.attachments,
+      attachments: opts.attachments?.map(a => ({
+        filename: a.filename,
+        content: a.content,
+      })),
     });
-    logger.info({ to: opts.to, subject: opts.subject, messageId: info.messageId }, "Email sent");
+    logger.info({ to: opts.to, subject: opts.subject, result }, "Email sent via Resend");
   } catch (err) {
-    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email");
+    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email via Resend");
     throw err;
   }
 }
