@@ -1,35 +1,41 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { logger } from "./logger";
 
-let cachedResend: Resend | null | undefined;
-let cachedFrom: string | null | undefined;
+let cachedTransporter: nodemailer.Transporter | null | undefined;
 
-function getResend(): { resend: Resend; from: string } | null {
-  if (cachedResend !== undefined) {
-    if (!cachedResend) return null;
-    return { resend: cachedResend, from: cachedFrom! };
+function getTransporter(): nodemailer.Transporter | null {
+  if (cachedTransporter !== undefined) {
+    return cachedTransporter as any;
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "Moldova Visa Assist <onboarding@resend.dev>";
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_PASS;
 
-  if (!apiKey) {
-    logger.warn("RESEND_API_KEY missing — emails will be logged to console only");
-    cachedResend = null;
-    cachedFrom = null;
+  if (!user || !pass) {
+    logger.warn("GMAIL_USER or GMAIL_PASS missing — emails will be logged only");
+    cachedTransporter = null;
     return null;
   }
 
-  cachedResend = new Resend(apiKey);
-  cachedFrom = from;
-  return { resend: cachedResend, from };
+  cachedTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+  });
+
+  return cachedTransporter;
 }
 
 export async function verifyEmailTransport(): Promise<boolean> {
-  const config = getResend();
-  if (!config) return false;
-  logger.info({ from: config.from }, "Resend is configured — email sending is live");
-  return true;
+  const transporter = getTransporter();
+  if (!transporter) return false;
+  try {
+    await transporter.verify();
+    logger.info({ from: process.env.GMAIL_USER }, "Gmail is configured — email sending is live");
+    return true;
+  } catch (e) {
+    logger.error({ e }, "Gmail verify failed");
+    return false;
+  }
 }
 
 interface EmailOptions {
@@ -40,27 +46,39 @@ interface EmailOptions {
 }
 
 export async function sendEmail(opts: EmailOptions): Promise<void> {
-  const config = getResend();
+  const transporter = getTransporter();
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.GMAIL_USER;
 
-  if (!config) {
-    logger.info({ to: opts.to, subject: opts.subject }, "Email (Resend not configured — logged only)");
+  if (!transporter) {
+    logger.info({ to: opts.to, subject: opts.subject }, "Email (Gmail not configured — logged only)");
     return;
   }
 
   try {
-    const result = await config.resend.emails.send({
-      from: config.from,
+    // 1. User ke pathao
+    await transporter.sendMail({
+      from: `"Moldova Visa Assist" <${process.env.GMAIL_USER}>`,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
-      attachments: opts.attachments?.map(a => ({
-        filename: a.filename,
-        content: a.content,
-      })),
+      attachments: opts.attachments,
     });
-    logger.info({ to: opts.to, subject: opts.subject, result }, "Email sent via Resend");
+    logger.info({ to: opts.to, subject: opts.subject }, "Email sent via Gmail to user");
+
+    // 2. Admin ke copy pathao (tumi jate bujhte paro user paise kina)
+    if (adminEmail && adminEmail.toLowerCase() !== opts.to.toLowerCase()) {
+      await transporter.sendMail({
+        from: `"Moldova Visa Assist" <${process.env.GMAIL_USER}>`,
+        to: adminEmail,
+        subject: `[COPY to ${opts.to}] ${opts.subject}`,
+        html: `<p style="background:#fef3c7;padding:10px;border-radius:4px"><b>Original sent to:</b> ${opts.to}</p><hr/>${opts.html}`,
+        attachments: opts.attachments,
+      });
+      logger.info({ to: adminEmail }, "Copy sent to admin");
+    }
+
   } catch (err) {
-    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email via Resend");
+    logger.error({ err, to: opts.to, subject: opts.subject }, "Failed to send email via Gmail");
     throw err;
   }
 }
