@@ -152,13 +152,13 @@ const apps = await db
 .select()
 .from(applicationsTable)
 .orderBy(applicationsTable.createdAt);
-res.json(apps.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })));
+res.json(apps.map((a) => ({...a, createdAt: a.createdAt.toISOString() })));
 });
 
 router.patch("/admin/applications/:id/approve", async (req, res): Promise<void> => {
 const id = Number(req.params.id);
 if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { notes } = req.body ?? {};
+const { notes } = req.body?? {};
 
 const client = await pool.connect();
 try {
@@ -174,11 +174,11 @@ let pdfBuffer: Buffer | null = null;
 try {
 pdfBuffer = await generateOfferLetterPdf({
 applicantName: `${app.first_name} ${app.last_name}`,
-jobTitle: app.job_title ?? "Position",
-location: app.location ?? "Europe",
-salary: app.salary ?? "As discussed",
-startDate: app.available_from ?? undefined,
-adminNotes: notes ?? undefined,
+jobTitle: app.job_title?? "Position",
+location: app.location?? "Europe",
+salary: app.salary?? "As discussed",
+startDate: app.available_from?? undefined,
+adminNotes: notes?? undefined,
 });
 } catch (err) {
 logger.error({ err }, "PDF generation failed — approving without PDF");
@@ -186,23 +186,28 @@ logger.error({ err }, "PDF generation failed — approving without PDF");
 
 await client.query(
 `UPDATE applications SET status = 'approved', admin_notes = $1 WHERE id = $2`,
-[notes ?? null, id]
+[notes?? null, id]
 );
 
-await sendEmail({
+res.json({ success: true, status: "approved" });
+
+sendEmail({
 to: app.email,
-subject: `Congratulations — Your Application for ${app.job_title ?? "the position"} is Approved`,
+subject: `Congratulations — Your Application for ${app.job_title?? "the position"} is Approved`,
 html: applicationApprovedEmail(
 app.first_name,
-app.job_title ?? "your applied position",
-notes ?? "We will contact you shortly with the next steps."
+app.job_title?? "your applied position",
+notes?? "We will contact you shortly with the next steps."
 ),
 attachments: pdfBuffer
 ? [{ filename: "Job_Offer_Letter.pdf", content: pdfBuffer, contentType: "application/pdf" }]
 : undefined,
-});
+}).then(() => logger.info({to: app.email}, "Approved email sent"))
+.catch((err) => logger.error({ err }, "Failed to send approved email"));
 
-res.json({ success: true, status: "approved" });
+} catch(err) {
+logger.error({err}, "Approve failed");
+if(!res.headersSent) res.status(500).json({error: "Approve failed"});
 } finally {
 client.release();
 }
@@ -211,7 +216,7 @@ client.release();
 router.patch("/admin/applications/:id/reject", async (req, res): Promise<void> => {
 const id = Number(req.params.id);
 if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { reason } = req.body ?? {};
+const { reason } = req.body?? {};
 
 const client = await pool.connect();
 try {
@@ -224,16 +229,17 @@ const app = rows[0];
 
 await client.query(
 `UPDATE applications SET status = 'rejected', admin_notes = $1 WHERE id = $2`,
-[reason ?? null, id]
+[reason?? null, id]
 );
 
-await sendEmail({
-to: app.email,
-subject: `Application Update — ${app.job_title ?? "Your Application"}`,
-html: applicationRejectedEmail(app.first_name, app.job_title ?? "the position", reason),
-});
-
 res.json({ success: true, status: "rejected" });
+
+sendEmail({
+to: app.email,
+subject: `Application Update — ${app.job_title?? "Your Application"}`,
+html: applicationRejectedEmail(app.first_name, app.job_title?? "the position", reason),
+}).catch((err) => logger.error({ err }, "Failed to send rejected email"));
+
 } finally {
 client.release();
 }
@@ -253,11 +259,11 @@ if (rows.length === 0) { res.status(404).json({ error: "Application not found" }
 const app = rows[0];
 const pdfBuffer = await generateOfferLetterPdf({
 applicantName: `${app.first_name} ${app.last_name}`,
-jobTitle:      app.job_title ?? "Position",
-location:      app.location ?? "Europe",
-salary:        app.salary ?? "As discussed",
-startDate:     app.available_from ?? undefined,
-adminNotes:    app.admin_notes ?? undefined,
+jobTitle: app.job_title?? "Position",
+location: app.location?? "Europe",
+salary: app.salary?? "As discussed",
+startDate: app.available_from?? undefined,
+adminNotes: app.admin_notes?? undefined,
 });
 res.setHeader("Content-Type", "application/pdf");
 res.setHeader("Content-Disposition", `attachment; filename="Offer_Letter_${id}.pdf"`);
@@ -282,7 +288,7 @@ client.release();
 router.patch("/admin/work-permits/:id/approve", async (req, res): Promise<void> => {
 const id = Number(req.params.id);
 if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { notes } = req.body ?? {};
+const { notes } = req.body?? {};
 const client = await pool.connect();
 
 try {
@@ -295,7 +301,7 @@ const { rows } = await client.query(
 SET status = 'approved', admin_notes = $1,
 approved_at = $2, valid_until = $3
 WHERE id = $4 RETURNING *`,
-[notes ?? null, approvedAt, validUntil, id]
+[notes?? null, approvedAt, validUntil, id]
 );
 if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
 const permit = rows[0];
@@ -316,53 +322,51 @@ validUntil,
 logger.error({ err: pdfErr }, "Failed to generate work permit decision PDF");
 }
 
-try {
-await sendEmail({
+res.json({ success: true, status: "approved", validUntil: validUntil.toISOString() });
+
+sendEmail({
 to: permit.email,
 subject: `Work Permit Approved — ${permit.reference_number}`,
-html: workPermitApprovedEmail(permit.first_name, permit.reference_number, validUntil, notes ?? undefined),
-attachments: pdfBuffer ? [{
+html: workPermitApprovedEmail(permit.first_name, permit.reference_number, validUntil, notes?? undefined),
+attachments: pdfBuffer? [{
 filename: `work-permit-decision-${permit.reference_number}.pdf`,
 content: pdfBuffer,
 contentType: "application/pdf",
 }] : undefined,
-});
-} catch (emailErr) {
-logger.error({ err: emailErr }, "Failed to send work permit approved email");
-}
+}).catch((emailErr) => logger.error({ err: emailErr }, "Failed to send work permit approved email"));
 
-res.json({ success: true, status: "approved", validUntil: validUntil.toISOString() });
 } catch (globalErr) {
 logger.error({ err: globalErr }, "Error in work permit approval route");
-res.status(500).json({ error: "Internal server error" });
-} finally { 
-client.release(); 
+if(!res.headersSent) res.status(500).json({ error: "Internal server error" });
+} finally {
+client.release();
 }
 });
 
 router.patch("/admin/work-permits/:id/reject", async (req, res): Promise<void> => {
 const id = Number(req.params.id);
 if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { reason } = req.body ?? {};
+const { reason } = req.body?? {};
 const client = await pool.connect();
 try {
 const { rows } = await client.query(
 `UPDATE work_permits SET status = 'rejected', admin_notes = $1 WHERE id = $2 RETURNING *`,
-[reason ?? null, id]
+[reason?? null, id]
 );
 if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
 const permit = rows[0];
 
-await sendEmail({
+res.json({ success: true, status: "rejected" });
+
+sendEmail({
 to: permit.email,
 subject: `Work Permit Application Update — ${permit.reference_number}`,
-html: workPermitRejectedEmail(permit.first_name, permit.reference_number, reason ?? undefined),
-});
+html: workPermitRejectedEmail(permit.first_name, permit.reference_number, reason?? undefined),
+}).catch((err) => logger.error({ err }, "Failed to send rejection email"));
 
-res.json({ success: true, status: "rejected" });
 } catch (err) {
 logger.error({ err }, "Failed to process work permit rejection");
-res.status(500).json({ error: "Internal server error" });
+if(!res.headersSent) res.status(500).json({ error: "Internal server error" });
 } finally { client.release(); }
 });
 
@@ -401,13 +405,14 @@ WHERE id = $1 RETURNING *`,
 if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
 const permit = rows[0];
 
+res.json({ success: true, paymentStatus: "paid" });
+
 sendEmail({
 to: permit.email,
 subject: `Payment Approved — ${permit.reference_number}`,
 html: workPermitPaymentApprovedEmail(permit.first_name, permit.reference_number),
 }).catch((err) => logger.error({ err }, "Failed to send payment approved email"));
 
-res.json({ success: true, paymentStatus: "paid" });
 } finally {
 client.release();
 }
@@ -416,25 +421,26 @@ client.release();
 router.patch("/admin/payments/:id/reject", async (req, res): Promise<void> => {
 const id = Number(req.params.id);
 if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { reason } = req.body ?? {};
+const { reason } = req.body?? {};
 const client = await pool.connect();
 try {
 const { rows } = await client.query(
 `UPDATE work_permits
 SET payment_status = 'rejected', payment_reviewed_at = NOW(), payment_rejection_reason = $1
 WHERE id = $2 RETURNING *`,
-[reason ?? null, id]
+[reason?? null, id]
 );
 if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
 const permit = rows[0];
 
+res.json({ success: true, paymentStatus: "rejected" });
+
 sendEmail({
 to: permit.email,
 subject: `Payment Receipt Update — ${permit.reference_number}`,
-html: workPermitPaymentRejectedEmail(permit.first_name, permit.reference_number, reason ?? undefined),
+html: workPermitPaymentRejectedEmail(permit.first_name, permit.reference_number, reason?? undefined),
 }).catch((err) => logger.error({ err }, "Failed to send payment rejected email"));
 
-res.json({ success: true, paymentStatus: "rejected" });
 } finally {
 client.release();
 }
@@ -443,23 +449,23 @@ client.release();
 // ── Jobs ──────────────────────────────────────────────────────────────────────
 
 router.post("/admin/jobs", async (req, res): Promise<void> => {
-const { title, location, salary, category, type, description, requirements, benefits, isActive } = req.body ?? {};
-if (!title || !location || !category) {
+const { title, location, salary, category, type, description, requirements, benefits, isActive } = req.body?? {};
+if (!title ||!location ||!category) {
 res.status(400).json({ error: "title, location and category are required" });
 return;
 }
 const [job] = await db
 .insert(jobsTable)
 .values({
-title:        String(title).trim(),
-location:     String(location).trim(),
-salary:       salary       ? String(salary).trim()       : "Competitive",
-category:     String(category).trim(),
-type:         type         ? String(type).trim()         : "Full-time",
-description:  description  ? String(description).trim()  : "",
-requirements: requirements ? String(requirements).trim() : "",
-benefits:     benefits     ? String(benefits).trim()     : undefined,
-isActive:     isActive !== false,
+title: String(title).trim(),
+location: String(location).trim(),
+salary: salary? String(salary).trim() : "Competitive",
+category: String(category).trim(),
+type: type? String(type).trim() : "Full-time",
+description: description? String(description).trim() : "",
+requirements: requirements? String(requirements).trim() : "",
+benefits: benefits? String(benefits).trim() : undefined,
+isActive: isActive!== false,
 })
 .returning();
 res.status(201).json(job);
@@ -468,24 +474,24 @@ res.status(201).json(job);
 router.patch("/admin/jobs/:id", async (req, res): Promise<void> => {
 const id = Number(req.params.id);
 if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const body = req.body ?? {};
+const body = req.body?? {};
 const client = await pool.connect();
 try {
 const setClauses: string[] = [];
 const values: unknown[] = [];
 let idx = 1;
 const strField = (key: string, col: string) => {
-if (body[key] !== undefined) { setClauses.push(`${col} = $${idx++}`); values.push(String(body[key]).trim()); }
+if (body[key]!== undefined) { setClauses.push(`${col} = $${idx++}`); values.push(String(body[key]).trim()); }
 };
-strField("title",        "title");
-strField("location",     "location");
-strField("salary",       "salary");
-strField("category",     "category");
-strField("type",         "type");
-strField("description",  "description");
+strField("title", "title");
+strField("location", "location");
+strField("salary", "salary");
+strField("category", "category");
+strField("type", "type");
+strField("description", "description");
 strField("requirements", "requirements");
-strField("benefits",     "benefits");
-if (body.isActive !== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(Boolean(body.isActive)); }
+strField("benefits", "benefits");
+if (body.isActive!== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(Boolean(body.isActive)); }
 if (setClauses.length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
 values.push(id);
 const { rows } = await client.query(
@@ -504,7 +510,7 @@ const id = Number(req.params.id);
 if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, id));
 if (!job) { res.status(404).json({ error: "Job not found" }); return; }
-const [updated] = await db.update(jobsTable).set({ isActive: !job.isActive }).where(eq(jobsTable.id, id)).returning();
+const [updated] = await db.update(jobsTable).set({ isActive:!job.isActive }).where(eq(jobsTable.id, id)).returning();
 res.json(updated);
 });
 
