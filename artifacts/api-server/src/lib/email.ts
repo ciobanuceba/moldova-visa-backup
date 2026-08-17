@@ -17,8 +17,12 @@ function getTransporter(): nodemailer.Transporter | null {
     return null;
   }
 
+  // FIX: Render e ENETUNREACH fix er jonno family: 4 + port 587
   cachedTransporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    family: 4,
     auth: { user, pass },
   });
 
@@ -65,7 +69,7 @@ export async function sendEmail(opts: EmailOptions): Promise<void> {
     });
     logger.info({ to: opts.to, subject: opts.subject }, "Email sent via Gmail to user");
 
-    // 2. Admin ke copy pathao (tumi jate bujhte paro user paise kina)
+    // 2. Admin ke copy pathao
     if (adminEmail && adminEmail.toLowerCase() !== opts.to.toLowerCase()) {
       await transporter.sendMail({
         from: `"Moldova Visa Assist" <${process.env.GMAIL_USER}>`,
