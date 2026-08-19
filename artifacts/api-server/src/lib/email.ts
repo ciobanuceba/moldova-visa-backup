@@ -1,15 +1,18 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import dns from "node:dns";
 import { setDefaultResultOrder } from "node:dns";
 import { logger } from "./logger";
 
 // Render instances can prefer IPv6 while the outbound network path to Gmail
-// is not reachable over IPv6. Prefer IPv4 for Node DNS lookups and also pass
-// the IPv4 family directly to Nodemailer. The cast keeps compatibility with
-// Nodemailer's TypeScript option definitions while preserving the runtime
-// net.connect family setting.
+// is not reachable over IPv6. Prefer IPv4 globally and force Nodemailer's
+// socket DNS lookup to return an IPv4 address for SMTP hosts.
 setDefaultResultOrder("ipv4first");
 
 const SMTP_FAMILY = 4;
+const ipv4Lookup = ((hostname: string, _options: unknown, callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
+  dns.lookup(hostname, { family: SMTP_FAMILY }, callback);
+}) as any;
+
 type EmailMode = "smtp" | "gmail";
 type EmailConfig = { transport: Transporter; from: string; mode: EmailMode };
 
@@ -28,6 +31,7 @@ function createSmtpTransport(): EmailConfig | null {
     port,
     secure: port === 465,
     family: SMTP_FAMILY,
+    lookup: ipv4Lookup,
     auth: { user, pass },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
@@ -52,6 +56,7 @@ function createGmailTransport(): EmailConfig | null {
     port: 587,
     secure: false,
     family: SMTP_FAMILY,
+    lookup: ipv4Lookup,
     auth: { user, pass },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
@@ -258,7 +263,7 @@ export function workPermitApprovedEmail(firstName: string, refNumber: string, va
 export function workPermitRejectedEmail(firstName: string, refNumber: string, reason?: string): string {
   return wrap(`
         <h2 style="color:#dc2626;margin-top:0">Work Permit Application Update / Actualizare permis de muncă</h2>
-        <p>Dear ${firstName}, / Stimate(ă) ${firstName},</p>
+        <p>Dear ${firstName}, / Stimate(ă) ${firstName}</p>
         <p>Application <strong>${refNumber}</strong> cannot proceed at this time.</p>
         ${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}`);
 }
@@ -266,7 +271,7 @@ export function workPermitRejectedEmail(firstName: string, refNumber: string, re
 export function workPermitReceiptReceivedEmail(firstName: string, refNumber: string): string {
   return wrap(`
         <h2 style="color:#1a2744;margin-top:0">Payment Receipt Received / Dovada plății a fost primită</h2>
-        <p>Dear ${firstName}, / Stimate(ă) ${firstName},</p>
+        <p>Dear ${firstName}, / Stimate(ă) ${firstName}</p>
         <p>Receipt for <strong>${refNumber}</strong> was received.</p>`);
 }
 
