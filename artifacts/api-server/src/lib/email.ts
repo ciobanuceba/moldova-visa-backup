@@ -3,8 +3,11 @@ import { setDefaultResultOrder } from "node:dns";
 import { logger } from "./logger";
 
 // Render instances can prefer IPv6 while the outbound network path to Gmail
-// is not reachable over IPv6. Force Node DNS lookups to prefer IPv4.
+// is not reachable over IPv6. Prefer IPv4 globally and explicitly tell
+// Nodemailer to use IPv4 for SMTP connections.
 setDefaultResultOrder("ipv4first");
+
+const SMTP_FAMILY = 4;
 
 type EmailMode = "smtp" | "gmail";
 type EmailConfig = { transport: Transporter; from: string; mode: EmailMode };
@@ -23,6 +26,7 @@ function createSmtpTransport(): EmailConfig | null {
     host,
     port,
     secure: port === 465,
+    family: SMTP_FAMILY,
     auth: { user, pass },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
@@ -46,6 +50,7 @@ function createGmailTransport(): EmailConfig | null {
     host: "smtp.gmail.com",
     port: 587,
     secure: false,
+    family: SMTP_FAMILY,
     auth: { user, pass },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
