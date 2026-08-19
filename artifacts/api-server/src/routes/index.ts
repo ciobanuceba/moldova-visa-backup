@@ -10,6 +10,7 @@ import authRouter from "./auth";
 import adminRouter from "./admin";
 import applicantRouter from "./applicant";
 import paymentsRouter from "./payments";
+import publicLookupRouter from "./publicLookup";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(uploadRouter);
 router.use(adminRouter);
 router.use(applicantRouter);
 router.use(paymentsRouter);
+router.use(publicLookupRouter);
 
 export default router;
