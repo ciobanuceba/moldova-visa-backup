@@ -30,6 +30,7 @@ import Terms from "./pages/Terms";
 import LetterBuilder from "./pages/LetterBuilder";
 import WorkPermit from "./pages/WorkPermit";
 import WorkPermitPayment from "./pages/WorkPermitPayment";
+import ApplicationLookup from "./pages/ApplicationLookup";
 import NotFound from "./pages/not-found";
 
 const queryClient = new QueryClient();
@@ -51,27 +52,14 @@ function Layout({ children, path }: { children: React.ReactNode; path?: string }
 function Router() {
   return (
     <Switch>
-      <Route path="/admin/login">
-        {() => <Layout path="/admin/login"><AdminLogin /></Layout>}
-      </Route>
-      <Route path="/login">
-        {() => <Layout path="/login"><ApplicantLogin /></Layout>}
-      </Route>
-      <Route path="/register">
-        {() => <Layout path="/register"><ApplicantRegister /></Layout>}
-      </Route>
-      <Route path="/dashboard">
-        {() => <Layout path="/dashboard"><ApplicantDashboard /></Layout>}
-      </Route>
-      <Route path="/work-permit/payment-success">
-        {() => <Layout path="/work-permit/payment-success"><PaymentSuccess /></Layout>}
-      </Route>
-      <Route path="/work-permit/payment-cancel">
-        {() => <Layout path="/work-permit/payment-cancel"><PaymentCancel /></Layout>}
-      </Route>
-      <Route path="/work-permit/:id/pay">
-        {() => <Layout path="/work-permit/pay"><WorkPermitPayment /></Layout>}
-      </Route>
+      <Route path="/admin/login">{() => <Layout path="/admin/login"><AdminLogin /></Layout>}</Route>
+      <Route path="/login">{() => <Layout path="/login"><ApplicantLogin /></Layout>}</Route>
+      <Route path="/register">{() => <Layout path="/register"><ApplicantRegister /></Layout>}</Route>
+      <Route path="/dashboard">{() => <Layout path="/dashboard"><ApplicantDashboard /></Layout>}</Route>
+      <Route path="/work-permit/payment-success">{() => <Layout path="/work-permit/payment-success"><PaymentSuccess /></Layout>}</Route>
+      <Route path="/work-permit/payment-cancel">{() => <Layout path="/work-permit/payment-cancel"><PaymentCancel /></Layout>}</Route>
+      <Route path="/work-permit/:id/pay">{() => <Layout path="/work-permit/pay"><WorkPermitPayment /></Layout>}</Route>
+      <Route path="/check-application" component={() => <Layout><ApplicationLookup /></Layout>} />
       <Route path="/" component={() => <Layout><Home /></Layout>} />
       <Route path="/jobs" component={() => <Layout><Jobs /></Layout>} />
       <Route path="/jobs/:id" component={() => <Layout><JobDetail /></Layout>} />
@@ -98,9 +86,7 @@ function App() {
           <TooltipProvider>
             <AuthProvider>
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                <ErrorBoundary>
-                  <Router />
-                </ErrorBoundary>
+                <ErrorBoundary><Router /></ErrorBoundary>
               </WouterRouter>
               <Toaster />
             </AuthProvider>
