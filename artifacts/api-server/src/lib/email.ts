@@ -3,9 +3,9 @@ import dns from "node:dns";
 import { setDefaultResultOrder } from "node:dns";
 import { logger } from "./logger";
 
-// Render instances can prefer IPv6 while the outbound network path to Gmail
-// is not reachable over IPv6. Prefer IPv4 globally and force Nodemailer's
-// socket DNS lookup to return an IPv4 address for SMTP hosts.
+// Render instances can prefer IPv6 while the outbound network path to SMTP
+// is not reachable over IPv6. Prefer IPv4 and force Nodemailer's lookup to
+// return an IPv4 address for SMTP hosts.
 setDefaultResultOrder("ipv4first");
 
 const SMTP_FAMILY = 4;
@@ -13,14 +13,15 @@ const ipv4Lookup = ((hostname: string, _options: unknown, callback: (err: NodeJS
   dns.lookup(hostname, { family: SMTP_FAMILY }, callback);
 }) as any;
 
-type EmailMode = "smtp" | "gmail";
+type EmailMode = "smtp" | "smtp-465" | "gmail" | "gmail-465";
 type EmailConfig = { transport: Transporter; from: string; mode: EmailMode };
 
 let cachedTransport: EmailConfig | null | undefined;
 
-function createSmtpTransport(): EmailConfig | null {
+function createSmtpTransport(portOverride?: number): EmailConfig | null {
   const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT) || 587;
+  const configuredPort = Number(process.env.SMTP_PORT) || 587;
+  const port = portOverride ?? configuredPort;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
@@ -41,20 +42,21 @@ function createSmtpTransport(): EmailConfig | null {
   return {
     transport,
     from: process.env.EMAIL_FROM || user,
-    mode: "smtp",
+    mode: port === 465 ? "smtp-465" : "smtp",
   };
 }
 
-function createGmailTransport(): EmailConfig | null {
+function createGmailTransport(portOverride?: number): EmailConfig | null {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_PASS;
 
   if (!user || !pass) return null;
 
+  const port = portOverride ?? 587;
   const transport = nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    port,
+    secure: port === 465,
     family: SMTP_FAMILY,
     lookup: ipv4Lookup,
     auth: { user, pass },
@@ -66,7 +68,7 @@ function createGmailTransport(): EmailConfig | null {
   return {
     transport,
     from: `"Moldova Visa Assist" <${user}>`,
-    mode: "gmail",
+    mode: port === 465 ? "gmail-465" : "gmail",
   };
 }
 
@@ -74,7 +76,8 @@ function getTransport(): EmailConfig | null {
   if (cachedTransport !== undefined) return cachedTransport;
 
   // Keep the existing Render SMTP configuration as the primary transport.
-  // If it cannot connect, sendEmail() will automatically try Gmail.
+  // If it cannot connect, verifyEmailTransport/sendEmail will try port 465
+  // on the same SMTP host and then the configured Gmail fallback.
   cachedTransport = createSmtpTransport() ?? createGmailTransport();
 
   if (!cachedTransport) {
@@ -84,52 +87,63 @@ function getTransport(): EmailConfig | null {
   return cachedTransport;
 }
 
-function getGmailFallback(current: EmailConfig): EmailConfig | null {
-  if (current.mode === "gmail") return null;
+function getFallbacks(current: EmailConfig): EmailConfig[] {
+  const fallbacks: EmailConfig[] = [];
 
-  const gmail = createGmailTransport();
-  if (!gmail) return null;
-
-  // Avoid retrying the exact same Gmail SMTP account twice.
-  const smtpUser = process.env.SMTP_USER;
-  const gmailUser = process.env.GMAIL_USER;
-  if (
-    current.mode === "smtp" &&
-    process.env.SMTP_HOST === "smtp.gmail.com" &&
-    smtpUser &&
-    gmailUser &&
-    smtpUser.toLowerCase() === gmailUser.toLowerCase()
-  ) {
-    return null;
+  // If SMTP 587 is unreachable on Render, try the same provider over the
+  // implicit-TLS SMTP port. This avoids changing credentials or email content.
+  if (current.mode === "smtp") {
+    const alternateSmtp = createSmtpTransport(465);
+    if (alternateSmtp) fallbacks.push(alternateSmtp);
   }
 
-  return gmail;
+  // Gmail fallback: try both ports, preferring 465 because the 587 path is
+  // the one currently timing out in production.
+  if (current.mode !== "gmail-465") {
+    const gmail465 = createGmailTransport(465);
+    if (gmail465) fallbacks.push(gmail465);
+  }
+  if (current.mode !== "gmail") {
+    const gmail587 = createGmailTransport(587);
+    if (gmail587) fallbacks.push(gmail587);
+  }
+
+  // Remove duplicate Gmail retries when SMTP and Gmail use the same account.
+  const smtpUser = process.env.SMTP_USER?.toLowerCase();
+  const gmailUser = process.env.GMAIL_USER?.toLowerCase();
+  if (smtpUser && gmailUser && process.env.SMTP_HOST === "smtp.gmail.com" && smtpUser === gmailUser) {
+    return fallbacks.filter((item) => item.mode !== "gmail" && item.mode !== "gmail-465");
+  }
+
+  return fallbacks;
+}
+
+async function tryVerify(config: EmailConfig): Promise<boolean> {
+  try {
+    await config.transport.verify();
+    cachedTransport = config;
+    logger.info({ from: config.from, mode: config.mode }, "Email transport verified — email sending is live");
+    return true;
+  } catch (err) {
+    logger.error({ err, mode: config.mode }, "Email transport verification failed");
+    return false;
+  }
 }
 
 export async function verifyEmailTransport(): Promise<boolean> {
   const config = getTransport();
   if (!config) return false;
 
-  try {
-    await config.transport.verify();
-    logger.info({ from: config.from, mode: config.mode }, "Email transport verified — email sending is live");
-    return true;
-  } catch (err) {
-    logger.error({ err, mode: config.mode }, "Email transport verification failed");
+  if (await tryVerify(config)) return true;
 
-    const fallback = getGmailFallback(config);
-    if (!fallback) return false;
-
-    try {
-      await fallback.transport.verify();
-      cachedTransport = fallback;
-      logger.info({ from: fallback.from, mode: fallback.mode }, "Gmail fallback verified — email sending is live");
+  for (const fallback of getFallbacks(config)) {
+    if (await tryVerify(fallback)) {
+      logger.info({ from: fallback.from, mode: fallback.mode }, "Fallback email transport verified — email sending is live");
       return true;
-    } catch (fallbackErr) {
-      logger.error({ err: fallbackErr, mode: fallback.mode }, "Gmail fallback verification failed");
-      return false;
     }
   }
+
+  return false;
 }
 
 interface EmailOptions {
@@ -137,6 +151,24 @@ interface EmailOptions {
   subject: string;
   html: string;
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
+}
+
+async function sendWithTransport(config: EmailConfig, opts: EmailOptions): Promise<boolean> {
+  try {
+    const info = await config.transport.sendMail({
+      from: config.from,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      attachments: opts.attachments,
+    });
+    cachedTransport = config;
+    logger.info({ to: opts.to, subject: opts.subject, messageId: info.messageId, mode: config.mode }, "Email sent");
+    return true;
+  } catch (err) {
+    logger.error({ err, to: opts.to, subject: opts.subject, mode: config.mode }, "Email transport failed");
+    return false;
+  }
 }
 
 export async function sendEmail(opts: EmailOptions): Promise<void> {
@@ -147,37 +179,12 @@ export async function sendEmail(opts: EmailOptions): Promise<void> {
     return;
   }
 
-  try {
-    const info = await config.transport.sendMail({
-      from: config.from,
-      to: opts.to,
-      subject: opts.subject,
-      html: opts.html,
-      attachments: opts.attachments,
-    });
-    logger.info({ to: opts.to, subject: opts.subject, messageId: info.messageId, mode: config.mode }, "Email sent");
-    return;
-  } catch (err) {
-    logger.error({ err, to: opts.to, subject: opts.subject, mode: config.mode }, "Primary email transport failed");
-  }
+  if (await sendWithTransport(config, opts)) return;
 
-  // If the configured SMTP server is unreachable, automatically retry through
-  // the separate Gmail credentials when available.
-  const fallback = getGmailFallback(config);
-  if (fallback) {
-    try {
-      const info = await fallback.transport.sendMail({
-        from: fallback.from,
-        to: opts.to,
-        subject: opts.subject,
-        html: opts.html,
-        attachments: opts.attachments,
-      });
-      cachedTransport = fallback;
-      logger.info({ to: opts.to, subject: opts.subject, messageId: info.messageId, mode: fallback.mode }, "Email sent through Gmail fallback");
+  for (const fallback of getFallbacks(config)) {
+    if (await sendWithTransport(fallback, opts)) {
+      logger.info({ to: opts.to, subject: opts.subject, mode: fallback.mode }, "Email sent through fallback transport");
       return;
-    } catch (fallbackErr) {
-      logger.error({ err: fallbackErr, to: opts.to, subject: opts.subject, mode: fallback.mode }, "Gmail fallback email failed");
     }
   }
 
