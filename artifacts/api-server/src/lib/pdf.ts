@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import path from "path";
 import { fileURLToPath } from "url";
-import crypto from "crypto";
+import { createHash } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,7 +39,7 @@ interface OfferLetterData { applicantName:string; jobTitle:string; location:stri
 
 export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buffer> { return new Promise((resolve,reject)=>{
  const doc=new PDFDocument({size:"A4",margin:54}); const chunks:Buffer[]=[]; doc.on("data",c=>chunks.push(c)); doc.on("end",()=>resolve(Buffer.concat(chunks))); doc.on("error",reject); doc.registerFont("Regular",path.join(FONTS_DIR,"overpass-regular.ttf")); doc.registerFont("Bold",path.join(FONTS_DIR,"overpass-bold.ttf"));
- const ref=data.referenceNumber || `MVA-APP-${crypto.createHash("sha256").update([data.applicantName,data.jobTitle,data.location,data.salary,data.startDate||""].join("|")).digest("hex").slice(0,10).toUpperCase()}`; const brand=data.employerName||"Moldova Visa Assist";
+ const ref=data.referenceNumber || `MVA-APP-${createHash("sha256").update([data.applicantName,data.jobTitle,data.location,data.salary,data.startDate||""].join("|")).digest("hex").slice(0,10).toUpperCase()}`; const brand=data.employerName||"Moldova Visa Assist";
  doc.lineWidth(1.2).moveTo(54,54).lineTo(541,54).stroke(); try{doc.image(path.join(FONTS_DIR,"stamp.png"),54,68,{width:62,height:62,fit:[62,62],align:"left",valign:"center"});}catch{}
  doc.font("Bold").fontSize(18).fillColor("#111827").text(brand,130,74,{width:320}); doc.font("Regular").fontSize(9).fillColor("#6b7280").text("Employment / Job Offer Letter",130,98,{width:320}); doc.font("Bold").fontSize(9).fillColor("#111827").text(`Reference: ${ref}`,395,75,{width:146,align:"right"}); doc.font("Regular").fontSize(8).fillColor("#6b7280").text(`Issued: ${new Date().toLocaleDateString("en-GB")}`,395,92,{width:146,align:"right"});
  doc.moveTo(54,145).lineTo(541,145).lineWidth(.6).strokeColor("#d1d5db").stroke(); doc.font("Bold").fontSize(15).fillColor("#111827").text("JOB OFFER",54,170,{width:487,align:"center"}); doc.font("Regular").fontSize(10).fillColor("#374151").text(`Dear ${data.applicantName},`,54,210,{width:487}); doc.text(`We are pleased to present this employment offer for the position of ${data.jobTitle}. The details below summarize the proposed employment terms.`,54,232,{width:487,lineGap:3});
