@@ -6,7 +6,6 @@ let cachedTransport: { transport: Transporter; from: string; mode: "smtp" | "gma
 function getTransport(): { transport: Transporter; from: string; mode: "smtp" | "gmail" } | null {
   if (cachedTransport !== undefined) return cachedTransport;
 
-  // Prefer the explicit SMTP configuration used by Render.
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = Number(process.env.SMTP_PORT) || 587;
   const smtpUser = process.env.SMTP_USER;
@@ -27,7 +26,6 @@ function getTransport(): { transport: Transporter; from: string; mode: "smtp" | 
     return cachedTransport;
   }
 
-  // Backward-compatible Gmail fallback for existing production configuration.
   const gmailUser = process.env.GMAIL_USER;
   const gmailPass = process.env.GMAIL_PASS;
   if (gmailUser && gmailPass) {
@@ -35,7 +33,6 @@ function getTransport(): { transport: Transporter; from: string; mode: "smtp" | 
       host: "smtp.gmail.com",
       port: 587,
       secure: false,
-      family: 4,
       auth: { user: gmailUser, pass: gmailPass },
       connectionTimeout: 10000,
       greetingTimeout: 10000,
@@ -45,7 +42,7 @@ function getTransport(): { transport: Transporter; from: string; mode: "smtp" | 
     return cachedTransport;
   }
 
-  logger.warn("Email not configured (SMTP_HOST/SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_PASS missing) — emails will be logged only");
+  logger.warn("Email not configured — emails will be logged only");
   cachedTransport = null;
   return cachedTransport;
 }
@@ -72,13 +69,10 @@ interface EmailOptions {
 
 export async function sendEmail(opts: EmailOptions): Promise<void> {
   const config = getTransport();
-  const adminEmail = process.env.ADMIN_EMAIL || process.env.GMAIL_USER || process.env.SMTP_USER;
-
   if (!config) {
     logger.info({ to: opts.to, subject: opts.subject }, "Email (transport not configured — logged only)");
     return;
   }
-
   try {
     const info = await config.transport.sendMail({
       from: config.from,
@@ -92,91 +86,23 @@ export async function sendEmail(opts: EmailOptions): Promise<void> {
     logger.error({ err, to: opts.to, subject: opts.subject, mode: config.mode }, "Failed to send email");
     throw err;
   }
-
-  // Preserve the production Gmail version's admin-copy behavior.
-  if (adminEmail && adminEmail.toLowerCase() !== opts.to.toLowerCase()) {
-    try {
-      await config.transport.sendMail({
-        from: config.from,
-        to: adminEmail,
-        subject: `[COPY to ${opts.to}] ${opts.subject}`,
-        html: `<p style="background:#fef3c7;padding:10px;border-radius:4px"><b>Original sent to:</b> ${opts.to}</p><hr/>${opts.html}`,
-        attachments: opts.attachments,
-      });
-      logger.info({ adminEmail, originalRecipient: opts.to }, "Admin email copy sent");
-    } catch (err) {
-      logger.warn({ err, adminEmail }, "Admin copy failed — ignored");
-    }
-  }
 }
 
-const LAYOUT_HEADER = `
-  <div style="background:#1a2744;padding:20px 24px;border-radius:8px 8px 0 0">
-    <h1 style="color:#fff;margin:0;font-size:22px">Moldova Visa Assist</h1>
-  </div>`;
+const LAYOUT_HEADER = `<div style="background:#1a2744;padding:20px 24px;border-radius:8px 8px 0 0"><h1 style="color:#fff;margin:0;font-size:22px">Moldova Visa Assist</h1></div>`;
+const LAYOUT_FOOTER = `<p style="color:#6b7280;font-size:14px;margin-top:32px">Cu stimă / Best regards,<br>Moldova Visa Assist Team · Chisinau, Republic of Moldova</p></div></div>`;
+function wrap(body: string): string { return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9fafb;border-radius:8px">${LAYOUT_HEADER}<div style="background:#fff;padding:28px 24px;border-radius:0 0 8px 8px;border:1px solid #e5e7eb">${body}${LAYOUT_FOOTER}`; }
 
-const LAYOUT_FOOTER = `
-    <p style="color:#6b7280;font-size:14px;margin-top:32px">Cu stimă / Best regards,<br>Moldova Visa Assist Team · Chisinau, Republic of Moldova</p>
-  </div>
-</div>`;
-
-function wrap(body: string): string {
-  return `
-  <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9fafb;border-radius:8px">
-    ${LAYOUT_HEADER}
-    <div style="background:#fff;padding:28px 24px;border-radius:0 0 8px 8px;border:1px solid #e5e7eb">
-      ${body}
-      ${LAYOUT_FOOTER}`;
-}
-
-export function applicationReceivedEmail(firstName: string, jobTitle: string): string {
-  return wrap(`
-        <h2 style="color:#1a2744;margin-top:0">Application Received / Cererea a fost primită</h2>
-        <p>Dear ${firstName}, / Stimate(ă) ${firstName},</p>
-        <p>Thank you for applying for the <strong>${jobTitle}</strong> position. Vă mulțumim pentru candidatura dumneavoastră — we have received your application and our team will review it shortly.</p>
-        <p>You will receive an email once a decision has been made. Veți primi un email după luarea deciziei, de obicei în 3–5 business days / zile lucrătoare.</p>`);
-}
-
-export function applicationApprovedEmail(firstName: string, jobTitle: string, offerDetails: string): string {
-  return wrap(`
-        <h2 style="color:#16a34a;margin-top:0">🎉 Congratulations — Application Approved / Candidatură aprobată!</h2>
-        <p>Dear ${firstName}, / Stimate(ă) ${firstName},</p>
-        <p>We are delighted to inform you that your application for <strong>${jobTitle}</strong> has been <strong>approved</strong>. Suntem bucuroși să vă informăm că cererea dumneavoastră a fost aprobată.</p>
-        <p>${offerDetails}</p>
-        <p>Please find your Job Offer Letter attached. Vă rugăm să verificați documentul și să ne contactați dacă aveți întrebări.</p>
-        <p><strong>Next Steps / Pașii următori:</strong></p>
-        <ol><li>Review the attached offer letter / Verificați scrisoarea de ofertă</li><li>Confirm your acceptance by replying to this email / Confirmați acceptarea prin reply la acest email</li><li>We will guide you through the visa and relocation process / Vă vom ghida în procesul de viză și relocare</li></ol>`);
-}
-
-export function applicationRejectedEmail(firstName: string, jobTitle: string, reason?: string): string {
-  return wrap(`<h2 style="color:#dc2626;margin-top:0">Application Update / Actualizare privind candidatura</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Thank you for your interest in the <strong>${jobTitle}</strong> position. Vă mulțumim pentru interes, însă după o analiză atentă nu putem continua candidatura dumneavoastră în acest moment.</p>${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}<p>We encourage you to browse our other available positions and apply again. Vă încurajăm să consultați alte poziții disponibile. We wish you every success / Vă dorim mult succes în căutarea unui loc de muncă.</p>`);
-}
-
-export function workPermitReceivedEmail(firstName: string, refNumber: string): string {
-  return wrap(`<h2 style="color:#1a2744;margin-top:0">Work Permit Application Received / Cererea pentru permis a fost primită</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Your work permit application has been received. Cererea dumneavoastră pentru permis de muncă a fost înregistrată. Your reference number is:</p><div style="background:#f3f4f6;padding:16px;border-radius:6px;text-align:center;font-size:20px;font-weight:bold;letter-spacing:2px;color:#1a2744;margin:16px 0">${refNumber}</div><p>Please keep this reference number safe. Vă rugăm să păstrați acest număr. Our team will contact you within 5–7 business days / zile lucrătoare.</p>`);
-}
-
-export function workPermitPaymentRequestEmail(firstName: string, refNumber: string, paymentUrl: string, amount: string): string {
-  return wrap(`<h2 style="color:#b45309;margin-top:0">Action Required — Complete Your Payment / Este necesară plata</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Your work permit application <strong>${refNumber}</strong> has been reviewed and is ready to proceed. Cererea dumneavoastră este pregătită pentru următorul pas. Please complete the application fee payment of <strong>${amount}</strong>.</p><div style="text-align:center;margin:24px 0"><a href="${paymentUrl}" style="background:#1a2744;color:#fff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:bold;display:inline-block">Pay Now / Plătește acum</a></div><p>If the button above does not work, copy and paste this link into your browser. Dacă butonul nu funcționează, copiați linkul:</p><p style="word-break:break-all;color:#2563eb">${paymentUrl}</p><p>Once payment is confirmed, our team will proceed with reviewing your work permit application. După confirmarea plății, echipa noastră va continua verificarea dosarului.</p>`);
-}
-
-export function workPermitPaymentConfirmedEmail(firstName: string, refNumber: string): string { return wrap(`<h2 style="color:#16a34a;margin-top:0">✅ Payment Confirmed / Plata a fost confirmată</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Your payment for work permit application <strong>${refNumber}</strong> has been successfully processed. Plata pentru cererea dumneavoastră a fost procesată cu succes.</p><p>Your application is now under review by our team. Dosarul este acum în proces de verificare. You will receive an update within 5–7 business days.</p>`); }
-
-export function workPermitApprovedEmail(firstName: string, refNumber: string, validUntil: Date, notes?: string): string {
-  const validStr = validUntil.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  return wrap(`<h2 style="color:#16a34a;margin-top:0">🎉 Work Permit Approved / Permisul de muncă a fost aprobat!</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>We are delighted to inform you that your work permit application <strong>${refNumber}</strong> has been approved. Suntem bucuroși să vă informăm că cererea a fost aprobată.</p><p>Your permit is valid until <strong>${validStr}</strong>. Permisul este valabil până la această dată.</p><p>Please find your decision document (<em>Decizie</em>) attached. Vă rugăm să păstrați documentul într-un loc sigur.</p>${notes ? `<p><strong>Note from our team / Notă:</strong> ${notes}</p>` : ""}<p>If you have any questions, please reply to this email or contact our support team. Dacă aveți întrebări, vă rugăm să ne scrieți.</p>`);
-}
-
-export function workPermitRejectedEmail(firstName: string, refNumber: string, reason?: string): string { return wrap(`<h2 style="color:#dc2626;margin-top:0">Work Permit Application Update / Actualizare permis de muncă</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>After careful review, we regret to inform you that we are unable to proceed with your work permit application <strong>${refNumber}</strong> at this time. După verificare, nu putem continua dosarul în acest moment.</p>${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}<p>If you believe this is in error or would like more information, please contact our support team. Dacă aveți nevoie de clarificări, vă rugăm să ne contactați.</p>`); }
-
-export function workPermitReceiptReceivedEmail(firstName: string, refNumber: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">Payment Receipt Received / Dovada plății a fost primită</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>We've received your payment receipt for work permit application <strong>${refNumber}</strong>. Am primit dovada plății, iar echipa noastră o va verifica în curând.</p><p>You'll receive an email once your payment has been reviewed. Veți primi un email după verificare, de obicei în 1–2 business days / zile lucrătoare.</p>`); }
-
-export function workPermitPaymentApprovedEmail(firstName: string, refNumber: string): string { return wrap(`<h2 style="color:#16a34a;margin-top:0">✅ Payment Approved / Plata a fost aprobată</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Great news — we've verified your payment receipt for work permit application <strong>${refNumber}</strong> and confirmed your payment. Vă informăm că plata a fost verificată și confirmată.</p><p>Your application is now under full review by our team. Dosarul este acum în verificare completă. You will receive an update within 5–7 business days.</p>`); }
-
-export function workPermitPaymentRejectedEmail(firstName: string, refNumber: string, reason?: string): string { return wrap(`<h2 style="color:#dc2626;margin-top:0">Payment Receipt Could Not Be Verified / Dovada plății nu a putut fi verificată</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>We were unable to verify the payment receipt you submitted for work permit application <strong>${refNumber}</strong>. Nu am putut verifica dovada plății trimisă.</p>${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}<p>Please log in to your dashboard and upload a valid receipt, or contact our support team for assistance. Vă rugăm să încărcați o dovadă validă sau să ne contactați.</p>`); }
-
-export function newPaymentReceiptAdminNotificationEmail(applicantName: string, refNumber: string, method: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">New Payment Receipt Uploaded</h2><p><strong>Applicant:</strong> ${applicantName}</p><p><strong>Reference:</strong> ${refNumber}</p><p><strong>Payment method:</strong> ${method}</p><p>Please review the uploaded receipt in the Admin Panel and mark the payment as Approved or Rejected.</p>`); }
-
-export function contactConfirmationEmail(name: string, message: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">We've Received Your Message / Am primit mesajul dumneavoastră</h2><p>Dear ${name}, / Stimate(ă) ${name},</p><p>Thank you for contacting Moldova Visa Assist. Vă mulțumim că ne-ați contactat. Our team will respond within 1–2 business days / Echipa noastră vă va răspunde în 1–2 zile lucrătoare.</p><div style="background:#f3f4f6;padding:16px;border-radius:6px;margin:16px 0;color:#374151;font-style:italic">"${message}"</div><p>If your inquiry is urgent, please call us directly. Pentru urgențe, vă rugăm să ne sunați.</p>`); }
-
+export function applicationReceivedEmail(firstName: string, jobTitle: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">Application Received / Cererea a fost primită</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Thank you for applying for the <strong>${jobTitle}</strong> position. We have received your application.</p>`); }
+export function applicationApprovedEmail(firstName: string, jobTitle: string, offerDetails: string): string { return wrap(`<h2 style="color:#16a34a;margin-top:0">🎉 Congratulations — Application Approved / Candidatură aprobată!</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Your application for <strong>${jobTitle}</strong> has been approved.</p><p>${offerDetails}</p><p>Please find your official Job Offer Letter attached.</p>`); }
+export function applicationRejectedEmail(firstName: string, jobTitle: string, reason?: string): string { return wrap(`<h2 style="color:#dc2626;margin-top:0">Application Update / Actualizare privind candidatura</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Thank you for your interest in the <strong>${jobTitle}</strong> position.</p>${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}`); }
+export function workPermitReceivedEmail(firstName: string, refNumber: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">Work Permit Application Received / Cererea pentru permis a fost primită</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Your work permit application has been received. Your reference number is:</p><div style="background:#f3f4f6;padding:16px;border-radius:6px;text-align:center;font-size:20px;font-weight:bold;letter-spacing:2px;color:#1a2744;margin:16px 0">${refNumber}</div>`); }
+export function workPermitPaymentRequestEmail(firstName: string, refNumber: string, paymentUrl: string, amount: string): string { return wrap(`<h2 style="color:#b45309;margin-top:0">Action Required — Complete Your Payment / Este necesară plata</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Application <strong>${refNumber}</strong> requires payment of <strong>${amount}</strong>.</p><p><a href="${paymentUrl}">Pay Now / Plătește acum</a></p>`); }
+export function workPermitPaymentConfirmedEmail(firstName: string, refNumber: string): string { return wrap(`<h2 style="color:#16a34a;margin-top:0">✅ Payment Confirmed / Plata a fost confirmată</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Payment for <strong>${refNumber}</strong> was successfully processed.</p>`); }
+export function workPermitApprovedEmail(firstName: string, refNumber: string, validUntil: Date, notes?: string): string { const validStr = validUntil.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }); return wrap(`<h2 style="color:#16a34a;margin-top:0">🎉 Work Permit Approved / Permisul de muncă a fost aprobat!</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Application <strong>${refNumber}</strong> has been approved.</p><p>Valid until <strong>${validStr}</strong>.</p>${notes ? `<p><strong>Note:</strong> ${notes}</p>` : ""}`); }
+export function workPermitRejectedEmail(firstName: string, refNumber: string, reason?: string): string { return wrap(`<h2 style="color:#dc2626;margin-top:0">Work Permit Application Update / Actualizare permis de muncă</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Application <strong>${refNumber}</strong> cannot proceed at this time.</p>${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}`); }
+export function workPermitReceiptReceivedEmail(firstName: string, refNumber: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">Payment Receipt Received / Dovada plății a fost primită</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Receipt for <strong>${refNumber}</strong> was received.</p>`); }
+export function workPermitPaymentApprovedEmail(firstName: string, refNumber: string): string { return wrap(`<h2 style="color:#16a34a;margin-top:0">✅ Payment Approved / Plata a fost aprobată</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Payment for <strong>${refNumber}</strong> was verified.</p>`); }
+export function workPermitPaymentRejectedEmail(firstName: string, refNumber: string, reason?: string): string { return wrap(`<h2 style="color:#dc2626;margin-top:0">Payment Receipt Could Not Be Verified / Dovada plății nu a putut fi verificată</h2><p>Dear ${firstName}, / Stimate(ă) ${firstName},</p><p>Receipt for <strong>${refNumber}</strong> could not be verified.</p>${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}`); }
+export function newPaymentReceiptAdminNotificationEmail(applicantName: string, refNumber: string, method: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">New Payment Receipt Uploaded</h2><p><strong>Applicant:</strong> ${applicantName}</p><p><strong>Reference:</strong> ${refNumber}</p><p><strong>Payment method:</strong> ${method}</p><p>Please review the uploaded receipt in the Admin Panel.</p>`); }
+export function contactConfirmationEmail(name: string, message: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">We've Received Your Message / Am primit mesajul dumneavoastră</h2><p>Dear ${name}, / Stimate(ă) ${name},</p><p>Thank you for contacting Moldova Visa Assist.</p><div style="background:#f3f4f6;padding:16px;border-radius:6px;margin:16px 0;color:#374151;font-style:italic">"${message}"</div>`); }
 export function contactAdminNotificationEmail(name: string, email: string, phone: string | undefined, subject: string, message: string): string { return wrap(`<h2 style="color:#1a2744;margin-top:0">New Contact Form Submission</h2><p><strong>Name:</strong> ${name}</p><p><strong>Email:</strong> ${email}</p>${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ""}<p><strong>Subject:</strong> ${subject}</p><div style="background:#f3f4f6;padding:16px;border-radius:6px;margin:16px 0;color:#374151">${message}</div>`); }
