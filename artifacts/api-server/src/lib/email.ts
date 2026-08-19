@@ -3,18 +3,30 @@ import dns from "node:dns";
 import { setDefaultResultOrder } from "node:dns";
 import { logger } from "./logger";
 
-// Prefer IPv4 for the legacy SMTP fallback. Resend uses HTTPS and does not
-// depend on SMTP ports 465/587.
+// Brevo/Resend use HTTPS and do not depend on Render SMTP egress.
+// SMTP remains only as a legacy fallback.
 setDefaultResultOrder("ipv4first");
 const SMTP_FAMILY = 4;
 const ipv4Lookup = ((hostname: string, _options: unknown, callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
   dns.lookup(hostname, { family: SMTP_FAMILY }, callback);
 }) as any;
 
-type EmailMode = "resend" | "smtp" | "smtp-465" | "gmail" | "gmail-465";
+type EmailMode = "brevo" | "resend" | "smtp" | "smtp-465" | "gmail" | "gmail-465";
 type EmailConfig = { transport?: Transporter; from: string; mode: EmailMode };
 
 let cachedTransport: EmailConfig | null | undefined;
+
+function getBrevoFrom(): string | null {
+  const from = process.env.BREVO_FROM_EMAIL || process.env.EMAIL_FROM;
+  return from || null;
+}
+
+function createBrevoTransport(): EmailConfig | null {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = getBrevoFrom();
+  if (!apiKey || !from) return null;
+  return { from, mode: "brevo" };
+}
 
 function createResendTransport(): EmailConfig | null {
   const apiKey = process.env.RESEND_API_KEY;
@@ -51,15 +63,15 @@ function createGmailTransport(portOverride?: number): EmailConfig | null {
 
 function getTransport(): EmailConfig | null {
   if (cachedTransport !== undefined) return cachedTransport;
-  // Resend is deliberately first: HTTPS avoids Render SMTP egress problems.
-  cachedTransport = createResendTransport() ?? createSmtpTransport() ?? createGmailTransport();
+  // Brevo is deliberately first: HTTPS avoids Render SMTP egress problems.
+  cachedTransport = createBrevoTransport() ?? createResendTransport() ?? createSmtpTransport() ?? createGmailTransport();
   if (!cachedTransport) logger.warn("Email not configured — emails will be logged only");
   return cachedTransport;
 }
 
 function getFallbacks(current: EmailConfig): EmailConfig[] {
   const fallbacks: EmailConfig[] = [];
-  if (current.mode === "resend") return fallbacks;
+  if (current.mode === "brevo" || current.mode === "resend") return fallbacks;
   if (current.mode === "smtp") {
     const alternate = createSmtpTransport(465);
     if (alternate) fallbacks.push(alternate);
@@ -75,6 +87,28 @@ function getFallbacks(current: EmailConfig): EmailConfig[] {
   return fallbacks;
 }
 
+async function verifyBrevo(): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = getBrevoFrom();
+  if (!apiKey || !from) return false;
+  try {
+    const response = await fetch("https://api.brevo.com/v3/account", {
+      method: "GET",
+      headers: { "api-key": apiKey, Accept: "application/json" },
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      logger.error({ status: response.status, body: text.slice(0, 500) }, "Brevo API verification failed");
+      return false;
+    }
+    logger.info({ from, mode: "brevo" }, "Brevo API verified — email sending is live");
+    return true;
+  } catch (err) {
+    logger.error({ err }, "Brevo API connection failed");
+    return false;
+  }
+}
+
 async function verifyResend(): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return false;
@@ -83,12 +117,8 @@ async function verifyResend(): Promise<boolean> {
       method: "GET",
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    if (!response.ok) {
-      const text = await response.text();
-      logger.error({ status: response.status, body: text.slice(0, 500) }, "Resend API verification failed");
-      return false;
-    }
-    logger.info({ from: process.env.RESEND_FROM || process.env.EMAIL_FROM, mode: "resend" }, "Resend API verified — email sending is live");
+    if (!response.ok) return false;
+    logger.info({ from: process.env.RESEND_FROM || process.env.EMAIL_FROM, mode: "resend" }, "Resend API verified");
     return true;
   } catch (err) {
     logger.error({ err }, "Resend API connection failed");
@@ -97,6 +127,7 @@ async function verifyResend(): Promise<boolean> {
 }
 
 async function tryVerify(config: EmailConfig): Promise<boolean> {
+  if (config.mode === "brevo") return verifyBrevo();
   if (config.mode === "resend") return verifyResend();
   try {
     await config.transport!.verify();
@@ -124,33 +155,57 @@ interface EmailOptions {
   attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
 }
 
+async function sendWithBrevo(opts: EmailOptions): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = getBrevoFrom();
+  if (!apiKey || !from) return false;
+  try {
+    const senderName = process.env.BREVO_FROM_NAME || "Moldova Visa Assist";
+    const body: Record<string, unknown> = {
+      sender: { name: senderName, email: from },
+      to: [{ email: opts.to }],
+      subject: opts.subject,
+      htmlContent: opts.html,
+    };
+    if (opts.attachments?.length) {
+      body.attachment = opts.attachments.map((a) => ({
+        name: a.filename,
+        content: a.content.toString("base64"),
+      }));
+    }
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": apiKey, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      logger.error({ status: response.status, response: result, to: opts.to, subject: opts.subject }, "Brevo email failed");
+      return false;
+    }
+    cachedTransport = { from, mode: "brevo" };
+    logger.info({ to: opts.to, subject: opts.subject, messageId: (result as any)?.messageId, mode: "brevo" }, "Email sent through Brevo");
+    return true;
+  } catch (err) {
+    logger.error({ err, to: opts.to, subject: opts.subject }, "Brevo request failed");
+    return false;
+  }
+}
+
 async function sendWithResend(opts: EmailOptions): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM || process.env.EMAIL_FROM;
   if (!apiKey || !from) return false;
   try {
-    const body: Record<string, unknown> = {
-      from,
-      to: [opts.to],
-      subject: opts.subject,
-      html: opts.html,
-    };
-    if (opts.attachments?.length) {
-      body.attachments = opts.attachments.map((a) => ({
-        filename: a.filename,
-        content: a.content.toString("base64"),
-      }));
-    }
+    const body: Record<string, unknown> = { from, to: [opts.to], subject: opts.subject, html: opts.html };
+    if (opts.attachments?.length) body.attachments = opts.attachments.map((a) => ({ filename: a.filename, content: a.content.toString("base64") }));
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      logger.error({ status: response.status, response: result, to: opts.to, subject: opts.subject }, "Resend email failed");
-      return false;
-    }
+    if (!response.ok) return false;
     cachedTransport = { from, mode: "resend" };
     logger.info({ to: opts.to, subject: opts.subject, messageId: (result as any)?.id, mode: "resend" }, "Email sent through Resend");
     return true;
@@ -161,6 +216,7 @@ async function sendWithResend(opts: EmailOptions): Promise<boolean> {
 }
 
 async function sendWithTransport(config: EmailConfig, opts: EmailOptions): Promise<boolean> {
+  if (config.mode === "brevo") return sendWithBrevo(opts);
   if (config.mode === "resend") return sendWithResend(opts);
   try {
     const info = await config.transport!.sendMail({ from: config.from, to: opts.to, subject: opts.subject, html: opts.html, attachments: opts.attachments });
