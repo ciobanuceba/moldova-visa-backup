@@ -3,9 +3,13 @@ import { setDefaultResultOrder } from "node:dns";
 import { logger } from "./logger";
 
 // Render instances can prefer IPv6 while the outbound network path to Gmail
-// is not reachable over IPv6. Prefer IPv4 for Node DNS lookups.
+// is not reachable over IPv6. Prefer IPv4 for Node DNS lookups and also pass
+// the IPv4 family directly to Nodemailer. The cast keeps compatibility with
+// Nodemailer's TypeScript option definitions while preserving the runtime
+// net.connect family setting.
 setDefaultResultOrder("ipv4first");
 
+const SMTP_FAMILY = 4;
 type EmailMode = "smtp" | "gmail";
 type EmailConfig = { transport: Transporter; from: string; mode: EmailMode };
 
@@ -23,11 +27,12 @@ function createSmtpTransport(): EmailConfig | null {
     host,
     port,
     secure: port === 465,
+    family: SMTP_FAMILY,
     auth: { user, pass },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 20000,
-  });
+  } as any);
 
   return {
     transport,
@@ -46,11 +51,12 @@ function createGmailTransport(): EmailConfig | null {
     host: "smtp.gmail.com",
     port: 587,
     secure: false,
+    family: SMTP_FAMILY,
     auth: { user, pass },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 20000,
-  });
+  } as any);
 
   return {
     transport,
@@ -267,14 +273,14 @@ export function workPermitReceiptReceivedEmail(firstName: string, refNumber: str
 export function workPermitPaymentApprovedEmail(firstName: string, refNumber: string): string {
   return wrap(`
         <h2 style="color:#16a34a;margin-top:0">✅ Payment Approved / Plata a fost aprobată</h2>
-        <p>Dear ${firstName}, / Stimate(ă) ${firstName},</p>
+        <p>Dear ${firstName}, / Stimate(ă) ${firstName}</p>
         <p>Payment for <strong>${refNumber}</strong> was verified.</p>`);
 }
 
 export function workPermitPaymentRejectedEmail(firstName: string, refNumber: string, reason?: string): string {
   return wrap(`
         <h2 style="color:#dc2626;margin-top:0">Payment Receipt Could Not Be Verified / Dovada plății nu a putut fi verificată</h2>
-        <p>Dear ${firstName}, / Stimate(ă) ${firstName},</p>
+        <p>Dear ${firstName}, / Stimate(ă) ${firstName}</p>
         <p>Receipt for <strong>${refNumber}</strong> could not be verified.</p>
         ${reason ? `<p><strong>Reason / Motiv:</strong> ${reason}</p>` : ""}`);
 }
