@@ -115,6 +115,19 @@ interface OfferLetterData {
   startDate?: string;
   employerName?: string;
   adminNotes?: string;
+  referenceNumber?: string;
+  applicationDate?: string;
+  email?: string;
+  phone?: string;
+  nationality?: string;
+  dateOfBirth?: string;
+  passportNumber?: string;
+  yearsExperience?: string;
+  skills?: string;
+  languages?: string;
+  experience?: string;
+  coverLetter?: string;
+  resumeUrl?: string;
 }
 
 export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buffer> {
