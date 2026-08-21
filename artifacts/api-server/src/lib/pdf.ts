@@ -1,13 +1,10 @@
 import PDFDocument from "pdfkit";
 import path from "path";
 import { fileURLToPath } from "url";
-import { db, applicationsTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const FONTS_DIR = path.join(__dirname, "..", "fonts");
-const LOGO_PATH = path.join(FONTS_DIR, "moldova-coa.png");
 
 interface WorkPermitDecisionData {
   referenceNumber: string;
@@ -70,7 +67,7 @@ export async function generateWorkPermitDecisionPdf(data: WorkPermitDecisionData
     doc.font("Bold").fontSize(10).text("mun. Chisinau",ML,dateY,{width:CW,align:"right"});
     const preambleY=272;
     doc.font("Regular").fontSize(9.5).fillColor("#000").text(
-      "  In temeiul art. 32, 43¹din Legea nr. 200 din 16.07.2010 privind regimul strainilor in Republica Moldova si demersului \\\"                                                \\\", prin care se solicita acordarea dreptului de sedere provizore pentru munca",
+      "  In temeiul art. 32, 43¹din Legea nr. 200 din 16.07.2010 privind regimul strainilor in Republica Moldova si demersului \"                                                \", prin care se solicita acordarea dreptului de sedere provizore pentru munca",
       ML,preambleY,{width:CW,align:"justify",lineGap:2});
     const ab1Y=328,natCol=ML+32,nameX=ML;
     doc.font("Bold").fontSize(9.5).text("cet.",ML,ab1Y);
@@ -101,7 +98,8 @@ export async function generateWorkPermitDecisionPdf(data: WorkPermitDecisionData
     doc.moveTo(ML+148,valY+13).lineTo(ML+280,valY+13).lineWidth(.5).stroke();
     doc.font("Bold").fontSize(9.5).text(fmtDate(data.validUntil),ML+150,valY);
     const sigY=520;
-    doc.font("Bold").fontSize(10).text("Sef Directie regionala",ML,sigY).text("Veaceslav PATRAS",ML,sigY,{width:CW,align:"right"});
+    doc.font("Bold").fontSize(10).fillColor("#000").text("Sef Directie regionala",ML,sigY);
+    doc.font("Bold").fontSize(10).fillColor("#000").text("Veaceslav PATRAS",ML,sigY,{width:CW,align:"right"});
     try { doc.image(path.join(FONTS_DIR,"stamp.png"),PW/2-55,sigY-15,{width:110}); } catch { doc.circle(PW/2,sigY+30,34).lineWidth(.9).strokeColor("#666").stroke(); }
     const footerRuleY=620;
     doc.moveTo(ML,footerRuleY).lineTo(MR,footerRuleY).lineWidth(.8).strokeColor("#000").stroke();
@@ -120,89 +118,75 @@ interface OfferLetterData {
   startDate?: string;
   employerName?: string;
   adminNotes?: string;
-  referenceNumber?: string;
-  applicationDate?: string;
-  email?: string;
-  phone?: string;
-  nationality?: string;
-  dateOfBirth?: string;
-  passportNumber?: string;
-  yearsExperience?: string;
-  skills?: string;
-  languages?: string;
-  experience?: string;
-  coverLetter?: string;
-  resumeUrl?: string;
-}
-
-function val(value: unknown, fallback = "Not provided"): string {
-  const s = String(value ?? "").trim();
-  return s || fallback;
 }
 
 export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buffer> {
-  try {
-    const parts = String(data.applicantName || "").trim().split(/\s+/);
-    const firstName = parts.shift() || "";
-    const lastName = parts.join(" ");
-    if (firstName && lastName) {
-      const rows = await db.select().from(applicationsTable)
-        .where(and(eq(applicationsTable.firstName, firstName), eq(applicationsTable.lastName, lastName)))
-        .limit(1);
-      const app = rows[0];
-      if (app) {
-        data = { ...data,
-          email: data.email || app.email, phone: data.phone || app.phone,
-          nationality: data.nationality || app.nationality || undefined,
-          dateOfBirth: data.dateOfBirth || app.dateOfBirth || undefined,
-          passportNumber: data.passportNumber || app.passportNumber || undefined,
-          yearsExperience: data.yearsExperience || app.yearsExperience || undefined,
-          skills: data.skills || app.skills || undefined, languages: data.languages || app.languages || undefined,
-          experience: data.experience || app.experience || undefined, coverLetter: data.coverLetter || app.coverLetter || undefined,
-          resumeUrl: data.resumeUrl || app.resumeUrl || undefined, applicationDate: data.applicationDate || app.createdAt.toISOString(),
-        };
-      }
-    }
-  } catch { /* keep the existing PDF flow working if enrichment is unavailable */ }
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A4", margin: 60 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    doc.registerFont("Regular", path.join(FONTS_DIR, "overpass-regular.ttf"));
+    doc.registerFont("Bold", path.join(FONTS_DIR, "overpass-bold.ttf"));
 
-  return new Promise((resolve,reject)=>{
-    const doc=new PDFDocument({size:"A4",margin:0});
-    const chunks:Buffer[]=[];
-    doc.on("data",c=>chunks.push(c)); doc.on("end",()=>resolve(Buffer.concat(chunks))); doc.on("error",reject);
-    doc.registerFont("Regular",path.join(FONTS_DIR,"overpass-regular.ttf")); doc.registerFont("Bold",path.join(FONTS_DIR,"overpass-bold.ttf"));
-    const ML=54,MR=541,CW=MR-ML,PW=595.28;
-    const navy="#18324B", gold="#B58A3A", ink="#1F2933", muted="#64748B", light="#F4F6F8";
-    const today=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
-    doc.rect(0,0,PW,108).fill(navy); try { doc.image(LOGO_PATH,ML,18,{fit:[58,58],align:"center",valign:"center"}); } catch {}
-    const brandX=128;
-    doc.font("Bold").fontSize(18).fillColor("#FFFFFF").text(data.employerName || "MOLDOVA VISA ASSIST SRL",brandX,25,{width:285});
-    doc.font("Regular").fontSize(8.5).fillColor("#DCE6EE").text("Recruitment & Visa Assistance",brandX,51,{width:285});
-    doc.font("Regular").fontSize(8).fillColor("#DCE6EE").text("Chisinau, Republic of Moldova",brandX,67,{width:285});
-    doc.font("Bold").fontSize(7.5).fillColor("#FFFFFF").text("OFFICIAL EMPLOYMENT DOCUMENT",MR-180,30,{width:180,align:"right"});
-    doc.font("Regular").fontSize(8).fillColor("#DCE6EE").text(today,MR-180,48,{width:180,align:"right"}); doc.rect(0,108,PW,4).fill(gold);
-    doc.font("Bold").fontSize(24).fillColor(navy).text("JOB OFFER LETTER",ML,142,{width:CW,align:"center"});
-    doc.font("Regular").fontSize(8.5).fillColor(muted).text("FORMAL EMPLOYMENT OFFER",ML,172,{width:CW,align:"center",characterSpacing:1.4});
-    doc.moveTo(ML,194).lineTo(MR,194).lineWidth(.7).strokeColor("#D7DEE5").stroke();
-    doc.font("Regular").fontSize(11).fillColor(ink).text(`Dear ${val(data.applicantName)},`,ML,218);
-    doc.font("Regular").fontSize(10.2).fillColor(ink).text(`We are pleased to extend this formal offer of employment to you for the position of ${val(data.jobTitle)} based in ${val(data.location)}.`,ML,244,{width:CW,lineGap:5});
-    const cardY=302;
-    const details:[string,string][]=[["Applicant",val(data.applicantName)],["Position",val(data.jobTitle)],["Work Location",val(data.location)],["Salary Package",val(data.salary)],["Employer",val(data.employerName,"MOLDOVA VISA ASSIST SRL")],...(data.startDate?[["Proposed Start Date",val(data.startDate)] as [string,string]]:[]),...(data.referenceNumber?[["Application Reference",data.referenceNumber] as [string,string]]:[]),...(data.applicationDate?[["Application Date",data.applicationDate] as [string,string]]:[])];
-    const cardH=66+details.length*29; doc.roundedRect(ML,cardY,CW,cardH,8).fill(light); doc.font("Bold").fontSize(11).fillColor(navy).text("EMPLOYMENT DETAILS",ML+18,cardY+16);
-    let y=cardY+47; for(const [label,value] of details){ doc.font("Bold").fontSize(7.8).fillColor(muted).text(label.toUpperCase(),ML+18,y,{width:125}); doc.font("Regular").fontSize(9.2).fillColor(ink).text(value,ML+150,y,{width:CW-168}); y+=29; }
-    let cursor=cardY+cardH+20;
-    doc.font("Bold").fontSize(10.5).fillColor(navy).text("APPLICANT INFORMATION",ML,cursor); cursor+=21;
-    const applicantRows:[string,string][]=[["Email",val(data.email)],["Phone",val(data.phone)],["Nationality",val(data.nationality)],["Date of Birth",val(data.dateOfBirth)],["Passport Number",val(data.passportNumber)]]; const halfW=(CW-14)/2;
-    for(let i=0;i<applicantRows.length;i+=2){ const left=applicantRows[i],right=applicantRows[i+1]; doc.roundedRect(ML,cursor,halfW,32,5).lineWidth(.5).strokeColor("#D7DEE5").stroke(); doc.font("Bold").fontSize(6.8).fillColor(muted).text(left[0].toUpperCase(),ML+8,cursor+7,{width:80}); doc.font("Regular").fontSize(8).fillColor(ink).text(left[1],ML+88,cursor+7,{width:halfW-96}); if(right){const rx=ML+halfW+14; doc.roundedRect(rx,cursor,halfW,32,5).lineWidth(.5).strokeColor("#D7DEE5").stroke(); doc.font("Bold").fontSize(6.8).fillColor(muted).text(right[0].toUpperCase(),rx+8,cursor+7,{width:80}); doc.font("Regular").fontSize(8).fillColor(ink).text(right[1],rx+88,cursor+7,{width:halfW-96});} cursor+=39; }
-    doc.font("Bold").fontSize(10.5).fillColor(navy).text("PROFESSIONAL PROFILE",ML,cursor+2); cursor+=23;
-    const profile:[string,string][]=[["Experience",val(data.yearsExperience)],["Skills",val(data.skills)],["Languages",val(data.languages)],["Experience Details",val(data.experience)]];
-    for(const [label,value] of profile){ doc.font("Bold").fontSize(7.5).fillColor(muted).text(label.toUpperCase(),ML,cursor,{width:110}); doc.font("Regular").fontSize(8.6).fillColor(ink).text(value,ML+120,cursor,{width:CW-120}); cursor=Math.max(cursor+17,doc.y+7); }
-    if(data.coverLetter){ doc.font("Bold").fontSize(10.5).fillColor(navy).text("COVER LETTER / APPLICANT STATEMENT",ML,cursor+5); doc.font("Regular").fontSize(8.5).fillColor(ink).text(data.coverLetter,ML,cursor+25,{width:CW,lineGap:3}); cursor=doc.y+15; }
-    if(data.adminNotes){ doc.font("Bold").fontSize(10.5).fillColor(navy).text("ADDITIONAL NOTES",ML,cursor+5); doc.font("Regular").fontSize(8.5).fillColor(ink).text(data.adminNotes,ML,cursor+25,{width:CW,lineGap:3}); cursor=doc.y+15; }
-    if(cursor>690){ doc.addPage(); cursor=55; }
-    doc.font("Bold").fontSize(10.5).fillColor(navy).text("TERMS & NEXT STEPS",ML,cursor+5);
-    doc.font("Regular").fontSize(8.8).fillColor(ink).text("This offer is subject to the applicable employment agreement and completion of required immigration, work permit, and pre-employment procedures. Please retain this letter and use the applicant details above for future correspondence.",ML,cursor+25,{width:CW,lineGap:4});
-    if(data.resumeUrl) doc.font("Regular").fontSize(7.5).fillColor(muted).text(`Submitted resume: ${data.resumeUrl}`,ML,doc.y+8,{width:CW});
-    const footerY=758; doc.moveTo(ML,footerY).lineTo(MR,footerY).lineWidth(.7).strokeColor("#D7DEE5").stroke(); doc.font("Bold").fontSize(8.5).fillColor(navy).text(data.employerName || "MOLDOVA VISA ASSIST SRL",ML,775); doc.font("Regular").fontSize(7.8).fillColor(muted).text("Recruitment & Visa Assistance Team",ML,790); doc.font("Regular").fontSize(7.8).fillColor(muted).text("Please retain this letter for your records.",MR-220,782,{width:220,align:"right"});
+    const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+    doc.font("Regular").fontSize(10).fillColor("#6b7280")
+      .text("Moldova Visa Assist SRL", { align: "right" })
+      .text("Stefan cel Mare si Sfant Boulevard 65", { align: "right" })
+      .text("Chisinau, MD-2001, Republic of Moldova", { align: "right" })
+      .text(`Date: ${today}`, { align: "right" })
+      .moveDown(2);
+
+    doc.font("Bold").fontSize(22).fillColor("#1a2744")
+      .text("JOB OFFER LETTER", { align: "center" })
+      .moveDown(0.5);
+
+    doc.moveTo(60, doc.y).lineTo(535, doc.y)
+      .strokeColor("#d4a029").lineWidth(2).stroke()
+      .moveDown(1.5);
+
+    doc.font("Regular").fontSize(11).fillColor("#111827")
+      .text(`Dear ${data.applicantName},`)
+      .moveDown(0.8)
+      .text(`We are pleased to extend this formal offer of employment to you for the position of ${data.jobTitle} based in ${data.location}.`, { lineGap: 4 })
+      .moveDown(1);
+
+    const details: [string, string][] = [
+      ["Position", data.jobTitle],
+      ["Location", data.location],
+      ["Salary Package", data.salary],
+      ...(data.employerName ? [["Employer", data.employerName] as [string, string]] : []),
+      ...(data.startDate ? [["Proposed Start Date", data.startDate] as [string, string]] : []),
+    ];
+
+    doc.font("Bold").fontSize(11).fillColor("#1a2744").text("Employment Details:").moveDown(0.5);
+    for (const [label, value] of details) {
+      doc.font("Bold").fillColor("#1a2744").text(`${label}: `, { continued: true })
+        .font("Regular").fillColor("#111827").text(value);
+    }
+    doc.moveDown(1);
+
+    if (data.adminNotes) {
+      doc.font("Bold").fillColor("#1a2744").text("Additional Notes:").moveDown(0.3)
+        .font("Regular").fillColor("#374151").text(data.adminNotes, { lineGap: 4 })
+        .moveDown(1);
+    }
+
+    doc.font("Regular").fillColor("#111827")
+      .text("This offer is contingent upon the successful completion of all visa, work permit, and pre-employment requirements. Moldova Visa Assist will guide you through each step of the process.", { lineGap: 4 })
+      .moveDown(1.5)
+      .text("Please confirm your acceptance of this offer by replying to this email within 5 business days.")
+      .moveDown(1.5)
+      .text("Congratulations and welcome to the team!")
+      .moveDown(2);
+
+    doc.font("Bold").text("Moldova Visa Assist SRL")
+      .font("Regular")
+      .text("Recruitment & Visa Assistance Team")
+      .text("contact@moldova-visa-assist.replit.app");
+
     doc.end();
   });
 }
