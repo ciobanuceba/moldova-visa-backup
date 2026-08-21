@@ -20,6 +20,10 @@ const blankPermit = {
   hasPassport: true, hasJobOffer: false, hasMedicalCert: false, hasCriminalRecord: false, hasPhotos: false, hasEducationCert: false,
 };
 
+type PermitTextKey = {
+  [K in keyof typeof blankPermit]: typeof blankPermit[K] extends string ? K : never
+}[keyof typeof blankPermit];
+
 function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   return <label className="space-y-1 block"><span className="text-sm font-medium">{label}</span><Input type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} /></label>;
 }
@@ -35,7 +39,7 @@ export default function AdminManual() {
   if (!isAdmin || !user) return <div className="min-h-screen flex items-center justify-center"><p>Admin access required.</p></div>;
 
   const setO = (key: keyof typeof blankOffer) => (value: string) => setOffer(p => ({ ...p, [key]: value }));
-  const setP = (key: keyof typeof blankPermit) => (value: string) => setPermit(p => ({ ...p, [key]: value }));
+  const setP = (key: PermitTextKey) => (value: string) => setPermit(p => ({ ...p, [key]: value }));
 
   async function createOffer(e: React.FormEvent) {
     e.preventDefault(); setOfferLoading(true);
