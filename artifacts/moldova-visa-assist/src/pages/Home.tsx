@@ -7,12 +7,12 @@ import { useI18n } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 
 const heroImages = [
-  "/IMG_20260821_120344_640.png",
-  "/IMG_20260821_120408_084.png",
-  "/IMG_20260821_120429_892.png",
-  "/IMG_20260821_120448_798.png",
-  "/IMG_20260821_120518_669.png",
-  "/IMG_20260821_120629_594.png",
+  "https://raw.githubusercontent.com/ciobanuceba/moldova-visa-backup/main/moldova-visa/public/IMG_20260821_120344_640.png",
+  "https://raw.githubusercontent.com/ciobanuceba/moldova-visa-backup/main/moldova-visa/public/IMG_20260821_120408_084.png",
+  "https://raw.githubusercontent.com/ciobanuceba/moldova-visa-backup/main/moldova-visa/public/IMG_20260821_120429_892.png",
+  "https://raw.githubusercontent.com/ciobanuceba/moldova-visa-backup/main/moldova-visa/public/IMG_20260821_120448_798.png",
+  "https://raw.githubusercontent.com/ciobanuceba/moldova-visa-backup/main/moldova-visa/public/IMG_20260821_120518_669.png",
+  "https://raw.githubusercontent.com/ciobanuceba/moldova-visa-backup/main/moldova-visa/public/IMG_20260821_120629_594.png",
 ];
 
 export default function Home() {
@@ -35,23 +35,34 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <section className="relative bg-primary pt-24 pb-32 overflow-hidden">
-        <div className="absolute inset-0 z-0 opacity-30">
-          {heroImages.map((src, index) => (
-            <img key={src} src={src} alt="Moldova workers" className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 ${index === heroIndex ? "opacity-100" : "opacity-0"}`} />
-          ))}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/85 to-transparent mix-blend-multiply" />
-        </div>
+      <section className="relative bg-primary pt-16 pb-24 overflow-hidden">
+        <div className="absolute inset-0 z-0 bg-gradient-to-br from-primary via-primary to-primary/90" />
         <div className="container mx-auto px-4 md:px-8 relative z-10">
-          <div className="max-w-3xl">
-            <h1 className="text-4xl md:text-6xl font-serif font-bold text-white leading-tight mb-6 animate-in slide-in-from-bottom-8 duration-700">{t.home.heroTitle1}{" "}<span className="text-secondary">{t.home.heroTitle2}</span></h1>
-            <p className="text-lg md:text-xl text-primary-foreground/90 mb-10 leading-relaxed max-w-2xl animate-in slide-in-from-bottom-8 duration-700 delay-150">{t.home.heroSubtitle}</p>
-            <div className="flex flex-col sm:flex-row gap-4 animate-in slide-in-from-bottom-8 duration-700 delay-300">
-              <Button size="lg" variant="secondary" className="font-semibold px-8" asChild><Link href="/jobs">{t.home.browseJobs} <ArrowRight className="ml-2 h-5 w-5" /></Link></Button>
-              <Button size="lg" variant="outline" className="font-semibold bg-white/10 text-white border-white/20 hover:bg-white/20" asChild><Link href="/services">{t.home.learnVisa}</Link></Button>
+          <div className="max-w-5xl mx-auto">
+            <div className="relative w-full aspect-[16/9] md:aspect-[2/1] overflow-hidden rounded-3xl border border-white/20 shadow-2xl bg-black/20">
+              {heroImages.map((src, index) => (
+                <img
+                  key={src}
+                  src={src}
+                  alt={`Moldova vineyard worker ${index + 1}`}
+                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${index === heroIndex ? "opacity-100" : "opacity-0"}`}
+                />
+              ))}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 z-10" aria-label="Hero slideshow controls">
+                {heroImages.map((_, index) => (
+                  <button key={index} type="button" onClick={() => setHeroIndex(index)} aria-label={`Show slide ${index + 1}`} className={`h-2.5 rounded-full transition-all ${index === heroIndex ? "w-9 bg-secondary" : "w-2.5 bg-white/70"}`} />
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2 mt-8" aria-label="Hero slideshow controls">
-              {heroImages.map((_, index) => <button key={index} type="button" onClick={() => setHeroIndex(index)} aria-label={`Show slide ${index + 1}`} className={`h-2 rounded-full transition-all ${index === heroIndex ? "w-8 bg-secondary" : "w-2 bg-white/60"}`} />)}
+
+            <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
+              <Button size="lg" variant="secondary" className="font-semibold px-8" asChild>
+                <Link href="/jobs">{t.home.browseJobs} <ArrowRight className="ml-2 h-5 w-5" /></Link>
+              </Button>
+              <Button size="lg" variant="outline" className="font-semibold bg-white/10 text-white border-white/20 hover:bg-white/20" asChild>
+                <Link href="/services">{t.home.learnVisa}</Link>
+              </Button>
             </div>
           </div>
         </div>
