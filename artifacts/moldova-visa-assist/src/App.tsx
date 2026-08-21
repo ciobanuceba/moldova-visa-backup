@@ -1,13 +1,14 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Link } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Navbar } from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
+import { Button } from "@/components/ui/button";
 import Home from "./pages/Home";
 import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
@@ -38,7 +39,27 @@ const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "
 function Layout({ children, path }: { children: React.ReactNode; path?: string }) {
   const noChrome = path && NO_CHROME_ROUTES.some(r => path.startsWith(r));
   if (noChrome) return <>{children}</>;
-  return <div className="flex flex-col min-h-[100dvh]"><Navbar /><main className="flex-1">{children}</main><Footer /></div>;
+  return (
+    <div className="flex flex-col min-h-[100dvh]">
+      {path === "/admin" && <AdminToolsBar />}
+      <Navbar />
+      <main className="flex-1">{children}</main>
+      <Footer />
+    </div>
+  );
+}
+
+function AdminToolsBar() {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return null;
+  return (
+    <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-end gap-3 text-sm">
+      <span>Admin:</span>
+      <Button asChild variant="secondary" size="sm">
+        <Link href="/admin/manual">Manual Job Offer / Work Permit</Link>
+      </Button>
+    </div>
+  );
 }
 
 function Router() {
@@ -63,8 +84,8 @@ function Router() {
     <Route path="/faq" component={() => <Layout><FAQ /></Layout>} />
     <Route path="/privacy" component={() => <Layout><Privacy /></Layout>} />
     <Route path="/terms" component={() => <Layout><Terms /></Layout>} />
-    <Route path="/admin/manual" component={() => <Layout><AdminManual /></Layout>} />
-    <Route path="/admin" component={() => <Layout><Admin /></Layout>} />
+    <Route path="/admin/manual" component={() => <Layout path="/admin/manual"><AdminManual /></Layout>} />
+    <Route path="/admin" component={() => <Layout path="/admin"><Admin /></Layout>} />
     <Route component={() => <Layout><NotFound /></Layout>} />
   </Switch>;
 }
