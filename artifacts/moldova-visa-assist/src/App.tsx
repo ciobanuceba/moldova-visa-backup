@@ -17,6 +17,7 @@ import Contact from "./pages/Contact";
 import Services from "./pages/Services";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
+import AdminManual from "./pages/AdminManual";
 import ApplicantLogin from "./pages/ApplicantLogin";
 import ApplicantRegister from "./pages/ApplicantRegister";
 import ApplicantDashboard from "./pages/ApplicantDashboard";
@@ -62,6 +63,7 @@ function Router() {
     <Route path="/faq" component={() => <Layout><FAQ /></Layout>} />
     <Route path="/privacy" component={() => <Layout><Privacy /></Layout>} />
     <Route path="/terms" component={() => <Layout><Terms /></Layout>} />
+    <Route path="/admin/manual" component={() => <Layout><AdminManual /></Layout>} />
     <Route path="/admin" component={() => <Layout><Admin /></Layout>} />
     <Route component={() => <Layout><NotFound /></Layout>} />
   </Switch>;
