@@ -13,6 +13,7 @@ import Home from "./pages/Home";
 import Jobs from "./pages/Jobs";
 import JobDetail from "./pages/JobDetail";
 import Apply from "./pages/Apply";
+import VisaApply from "./pages/VisaApply";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Services from "./pages/Services";
@@ -39,27 +40,13 @@ const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "
 function Layout({ children, path }: { children: React.ReactNode; path?: string }) {
   const noChrome = path && NO_CHROME_ROUTES.some(r => path.startsWith(r));
   if (noChrome) return <>{children}</>;
-  return (
-    <div className="flex flex-col min-h-[100dvh]">
-      {path === "/admin" && <AdminToolsBar />}
-      <Navbar />
-      <main className="flex-1">{children}</main>
-      <Footer />
-    </div>
-  );
+  return <div className="flex flex-col min-h-[100dvh]">{path === "/admin" && <AdminToolsBar />}<Navbar /><main className="flex-1">{children}</main><Footer /></div>;
 }
 
 function AdminToolsBar() {
   const { isAdmin } = useAuth();
   if (!isAdmin) return null;
-  return (
-    <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-end gap-3 text-sm">
-      <span>Admin:</span>
-      <Button asChild variant="secondary" size="sm">
-        <Link href="/admin/manual">Manual Job Offer / Work Permit</Link>
-      </Button>
-    </div>
-  );
+  return <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-end gap-3 text-sm"><span>Admin:</span><Button asChild variant="secondary" size="sm"><Link href="/admin/manual">Manual Job Offer / Work Permit</Link></Button></div>;
 }
 
 function Router() {
@@ -72,6 +59,7 @@ function Router() {
     <Route path="/work-permit/payment-cancel">{() => <Layout path="/work-permit/payment-cancel"><PaymentCancel /></Layout>}</Route>
     <Route path="/work-permit/:id/pay">{() => <Layout path="/work-permit/pay"><WorkPermitPayment /></Layout>}</Route>
     <Route path="/check-application" component={() => <Layout><ApplicationLookup /></Layout>} />
+    <Route path="/visa-apply" component={() => <Layout><VisaApply /></Layout>} />
     <Route path="/" component={() => <Layout><Home /></Layout>} />
     <Route path="/jobs" component={() => <Layout><Jobs /></Layout>} />
     <Route path="/jobs/:id" component={() => <Layout><JobDetail /></Layout>} />
@@ -91,12 +79,7 @@ function Router() {
 }
 
 function App() {
-  return <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-    <I18nProvider><QueryClientProvider client={queryClient}><TooltipProvider><AuthProvider>
-      <WouterRouter base="/"><ErrorBoundary><Router /></ErrorBoundary></WouterRouter>
-      <Toaster />
-    </AuthProvider></TooltipProvider></QueryClientProvider></I18nProvider>
-  </ThemeProvider>;
+  return <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}><I18nProvider><QueryClientProvider client={queryClient}><TooltipProvider><AuthProvider><WouterRouter base="/"><ErrorBoundary><Router /></ErrorBoundary></WouterRouter><Toaster /></AuthProvider></TooltipProvider></QueryClientProvider></I18nProvider></ThemeProvider>;
 }
 
 export default App;
