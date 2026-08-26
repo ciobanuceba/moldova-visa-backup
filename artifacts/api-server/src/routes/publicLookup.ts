@@ -6,11 +6,6 @@ import { eq } from "drizzle-orm";
 const router: IRouter = Router();
 function offerReference(app: { firstName:string; lastName:string; jobTitle:string; location:string; salary:string; startDate?:string|null }): string { return `MVA-APP-${createHash("sha256").update([`${app.firstName} ${app.lastName}`,app.jobTitle,app.location,app.salary,app.startDate||""].join("|")).digest("hex").slice(0,10).toUpperCase()}`; }
 function visaReference(app: { firstName:string; lastName:string; passportNumber:string; visaType:string; travelDate:string }): string { return `MVA-VISA-${createHash("sha256").update([app.firstName,app.lastName,app.passportNumber,app.visaType,app.travelDate].join("|")).digest("hex").slice(0,10).toUpperCase()}`; }
-function visaTimeline(status: string) {
-  const steps = ["received", "review", "processing", "decision_ready", "approved"];
-  const current = status === "rejected" ? -1 : steps.indexOf(status === "pending" ? "received" : status);
-  return steps.map((key, index) => ({ key, completed: current >= index, current: current === index }));
-}
 router.get("/public/applications/:referenceNumber", async (req,res):Promise<void> => {
   const referenceNumber=String(req.params.referenceNumber||"").trim().toUpperCase();
   if(!/^MVA-(?:\d{4}-[A-F0-9]{6}|APP-[A-F0-9]{10}|VISA-[A-F0-9]{10})$/.test(referenceNumber)){ res.status(400).json({error:"Invalid reference number"}); return; }
@@ -19,9 +14,8 @@ router.get("/public/applications/:referenceNumber", async (req,res):Promise<void
       const rows=await db.select({ firstName:applicationsTable.firstName,lastName:applicationsTable.lastName,passportNumber:applicationsTable.passportNumber,coverLetter:applicationsTable.coverLetter,status:applicationsTable.status,createdAt:applicationsTable.createdAt }).from(applicationsTable).where(eq(applicationsTable.jobId,0));
       const app=rows.find(row=>{ try { const d=JSON.parse(row.coverLetter||"{}"); return d.type==="visa" && visaReference({firstName:row.firstName,lastName:row.lastName,passportNumber:row.passportNumber||"",visaType:d.visaType||"",travelDate:d.travelDate||""})===referenceNumber; } catch { return false; } });
       if(!app){res.status(404).json({error:"Visa application not found"});return;}
-      const d=JSON.parse(app.coverLetter||"{}"); const status=app.status||"pending";
-      const publicStatus=status==="pending"?"received":status;
-      res.json({found:true,application:{referenceNumber,applicantName:`${app.firstName} ${app.lastName.slice(0,1)}.`,jobTitle:`${d.visaType||"Visa"} — ${d.destination||""}`,location:d.destination||"—",startDate:d.travelDate||undefined,status:publicStatus,createdAt:app.createdAt,timeline:visaTimeline(publicStatus)}}); return;
+      const d=JSON.parse(app.coverLetter||"{}"); const status=app.status||"pending"; const publicStatus=status==="pending"?"received":status;
+      res.json({found:true,application:{referenceNumber,applicantName:`${app.firstName} ${app.lastName.slice(0,1)}.`,jobTitle:`${d.visaType||"Visa"} — ${d.destination||""}`,location:d.destination||"—",startDate:d.travelDate||undefined,status:publicStatus,createdAt:app.createdAt}}); return;
     }
     if(referenceNumber.startsWith("MVA-APP-")){
       const rows=await db.select({firstName:applicationsTable.firstName,lastName:applicationsTable.lastName,jobTitle:jobsTable.title,location:jobsTable.location,salary:jobsTable.salary,availableFrom:applicationsTable.availableFrom,status:applicationsTable.status,createdAt:applicationsTable.createdAt}).from(applicationsTable).leftJoin(jobsTable,eq(jobsTable.id,applicationsTable.jobId));
