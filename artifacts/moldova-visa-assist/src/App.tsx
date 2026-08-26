@@ -35,7 +35,7 @@ import ApplicationLookup from "./pages/ApplicationLookup";
 import NotFound from "./pages/not-found";
 
 const queryClient = new QueryClient();
-const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel", "/work-permit/pay"];
+const NO_CHROME_ROUTES = ["/admin/login", "/admin", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel", "/work-permit/pay"];
 
 function Layout({ children, path }: { children: React.ReactNode; path?: string }) {
   const noChrome = path && NO_CHROME_ROUTES.some(r => path.startsWith(r));
@@ -49,9 +49,15 @@ function AdminToolsBar() {
   return <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-end gap-3 text-sm"><span>Admin:</span><Button asChild variant="secondary" size="sm"><Link href="/admin/manual">Manual Job Offer / Work Permit</Link></Button></div>;
 }
 
+function AdminEntry() {
+  const { isAdmin } = useAuth();
+  return isAdmin ? <Layout path="/admin"><Admin /></Layout> : <Layout path="/admin/login"><AdminLogin /></Layout>;
+}
+
 function Router() {
   return <Switch>
     <Route path="/admin/login">{() => <Layout path="/admin/login"><AdminLogin /></Layout>}</Route>
+    <Route path="/admin">{() => <AdminEntry />}</Route>
     <Route path="/login">{() => <Layout path="/login"><ApplicantLogin /></Layout>}</Route>
     <Route path="/register">{() => <Layout path="/register"><ApplicantRegister /></Layout>}</Route>
     <Route path="/dashboard">{() => <Layout path="/dashboard"><ApplicantDashboard /></Layout>}</Route>
@@ -73,7 +79,6 @@ function Router() {
     <Route path="/privacy" component={() => <Layout><Privacy /></Layout>} />
     <Route path="/terms" component={() => <Layout><Terms /></Layout>} />
     <Route path="/admin/manual" component={() => <Layout path="/admin/manual"><AdminManual /></Layout>} />
-    <Route path="/admin" component={() => <Layout path="/admin"><Admin /></Layout>} />
     <Route component={() => <Layout><NotFound /></Layout>} />
   </Switch>;
 }
