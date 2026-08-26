@@ -35,12 +35,15 @@ import ApplicationLookup from "./pages/ApplicationLookup";
 import NotFound from "./pages/not-found";
 
 const queryClient = new QueryClient();
-const NO_CHROME_ROUTES = ["/admin/login", "/admin", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel", "/work-permit/pay"];
+const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel", "/work-permit/pay"];
 
 function Layout({ children, path }: { children: React.ReactNode; path?: string }) {
+  if (path === "/admin") {
+    return <div className="min-h-[100dvh]"><AdminToolsBar /><main>{children}</main></div>;
+  }
   const noChrome = path && NO_CHROME_ROUTES.some(r => path.startsWith(r));
   if (noChrome) return <>{children}</>;
-  return <div className="flex flex-col min-h-[100dvh]">{path === "/admin" && <AdminToolsBar />}<Navbar /><main className="flex-1">{children}</main><Footer /></div>;
+  return <div className="flex flex-col min-h-[100dvh]"><Navbar /><main className="flex-1">{children}</main><Footer /></div>;
 }
 
 function AdminToolsBar() {
