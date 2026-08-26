@@ -1,4 +1,5 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, Globe2, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
