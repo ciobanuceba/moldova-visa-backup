@@ -13,9 +13,9 @@ import adminManualRouter from "./adminManual";
 import applicantRouter from "./applicant";
 import paymentsRouter from "./payments";
 import publicLookupRouter from "./publicLookup";
+import adminVisaStatusRouter from "./adminVisaStatus";
 
 const router: IRouter = Router();
-
 router.use(healthRouter);
 router.use(authRouter);
 router.use(jobsRouter);
@@ -30,5 +30,5 @@ router.use(adminManualRouter);
 router.use(applicantRouter);
 router.use(paymentsRouter);
 router.use(publicLookupRouter);
-
+router.use(adminVisaStatusRouter);
 export default router;
