@@ -25,6 +25,7 @@ import ApplicantRegister from "./pages/ApplicantRegister";
 import ApplicantDashboard from "./pages/ApplicantDashboard";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCancel from "./pages/PaymentCancel";
+import Payment from "./pages/Payment";
 import FAQ from "./pages/FAQ";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
@@ -38,9 +39,7 @@ const queryClient = new QueryClient();
 const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel", "/work-permit/pay"];
 
 function Layout({ children, path }: { children: React.ReactNode; path?: string }) {
-  if (path === "/admin") {
-    return <div className="min-h-[100dvh]"><AdminToolsBar /><main>{children}</main></div>;
-  }
+  if (path === "/admin") return <div className="min-h-[100dvh]"><AdminToolsBar /><main>{children}</main></div>;
   const noChrome = path && NO_CHROME_ROUTES.some(r => path.startsWith(r));
   if (noChrome) return <>{children}</>;
   return <div className="flex flex-col min-h-[100dvh]"><Navbar /><main className="flex-1">{children}</main><Footer /></div>;
@@ -64,6 +63,7 @@ function Router() {
     <Route path="/login">{() => <Layout path="/login"><ApplicantLogin /></Layout>}</Route>
     <Route path="/register">{() => <Layout path="/register"><ApplicantRegister /></Layout>}</Route>
     <Route path="/dashboard">{() => <Layout path="/dashboard"><ApplicantDashboard /></Layout>}</Route>
+    <Route path="/payment">{() => <Layout><Payment /></Layout>}</Route>
     <Route path="/work-permit/payment-success">{() => <Layout path="/work-permit/payment-success"><PaymentSuccess /></Layout>}</Route>
     <Route path="/work-permit/payment-cancel">{() => <Layout path="/work-permit/payment-cancel"><PaymentCancel /></Layout>}</Route>
     <Route path="/work-permit/:id/pay">{() => <Layout path="/work-permit/pay"><WorkPermitPayment /></Layout>}</Route>
