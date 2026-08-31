@@ -17,7 +17,7 @@ router.post("/chat/conversations", async (req, res): Promise<void> => {
   try {
     const c = await client.query(`INSERT INTO chat_conversations (name,email,file_number) VALUES ($1,$2,$3) RETURNING *`, [String(name).trim(), String(email).trim(), fileNumber ? String(fileNumber).trim() : null]);
     const conversation = c.rows[0];
-    const welcome = "Welcome to Moldova. Thank you for contacting us. Your message has been received, and our admin will reply as soon as possible.";
+    const welcome = "Welcome to Moldova Visa Assist. Thank you for contacting us. Your message has been received, and our support team will get back to you as soon as possible.";
     const m = await client.query(`INSERT INTO chat_messages (conversation_id,sender,message) VALUES ($1,'user',$2) RETURNING *`, [conversation.id, String(message).trim()]);
     const w = await client.query(`INSERT INTO chat_messages (conversation_id,sender,message) VALUES ($1,'admin',$2) RETURNING *`, [conversation.id, welcome]);
     await client.query(`UPDATE chat_conversations SET last_message_at=NOW() WHERE id=$1`, [conversation.id]);
@@ -48,9 +48,27 @@ router.post("/chat/conversations/:id/messages", async (req, res): Promise<void> 
   } finally { client.release(); }
 });
 
-router.get("/admin/chat/conversations", requireAdmin, async (_req, res): Promise<void> => {
-  const { rows } = await pool.query(`SELECT c.*, (SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id=c.id) AS message_count FROM chat_conversations c ORDER BY c.last_message_at DESC`);
+router.get("/admin/chat/conversations", requireAdmin, async (req, res): Promise<void> => {
+  const email = typeof req.query.email === "string" ? req.query.email.trim() : "";
+  const { rows } = await pool.query(email ? `SELECT c.*, (SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id=c.id) AS message_count FROM chat_conversations c WHERE LOWER(c.email)=LOWER($1) ORDER BY c.last_message_at DESC` : `SELECT c.*, (SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id=c.id) AS message_count FROM chat_conversations c ORDER BY c.last_message_at DESC`, email ? [email] : []);
   res.json(rows);
+});
+
+router.delete("/admin/chat/conversations/:id", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid conversation" }); return; }
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`DELETE FROM chat_messages WHERE conversation_id=$1`, [id]);
+    const result = await client.query(`DELETE FROM chat_conversations WHERE id=$1 RETURNING id`, [id]);
+    await client.query("COMMIT");
+    if (!result.rows.length) { res.status(404).json({ error: "Conversation not found" }); return; }
+    res.json({ success: true, deletedId: id });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally { client.release(); }
 });
 
 router.post("/admin/chat/conversations/:id/messages", requireAdmin, async (req, res): Promise<void> => {
