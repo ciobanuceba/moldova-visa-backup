@@ -31,6 +31,14 @@ function getManualPaymentMethods() {
   return methods;
 }
 
+function getPublicBaseUrl(): string {
+  const renderUrl = String(process.env.RENDER_EXTERNAL_URL || "").trim().replace(/\/$/, "");
+  if (renderUrl) return renderUrl;
+  const replitDomain = String(process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "").split(",")[0].trim();
+  if (replitDomain) return `https://${replitDomain}`;
+  return "http://localhost:5000";
+}
+
 // Standalone public payment page: user supplies only name, file number and amount.
 // No application search/list is exposed to the user.
 router.post("/payments/general/checkout", async (req, res): Promise<void> => {
@@ -49,8 +57,7 @@ router.post("/payments/general/checkout", async (req, res): Promise<void> => {
 
   try {
     const stripe = getUncachableStripeClient();
-    const domain = (process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "").split(",")[0];
-    const baseUrl = domain ? `https://${domain}` : "http://localhost:5000";
+    const baseUrl = getPublicBaseUrl();
     const amountCents = Math.round(numericAmount * 100);
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -120,8 +127,7 @@ router.post("/payments/work-permit/checkout", requireApplicant, async (req, res)
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     const permit = rows[0];
     const stripe = getUncachableStripeClient();
-    const domain = (process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "").split(",")[0];
-    const baseUrl = domain ? `https://${domain}` : "http://localhost:5000";
+    const baseUrl = getPublicBaseUrl();
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{ price_data: { currency: "eur", unit_amount: WORK_PERMIT_FEE_EUR, product_data: { name: "Work Permit Fee" } }, quantity: 1 }],
