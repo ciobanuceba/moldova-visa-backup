@@ -18,6 +18,7 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Services from "./pages/Services";
 import Admin from "./pages/Admin";
+import AdminChat from "./pages/AdminChat";
 import AdminLogin from "./pages/AdminLogin";
 import AdminManual from "./pages/AdminManual";
 import ApplicantLogin from "./pages/ApplicantLogin";
@@ -37,57 +38,42 @@ import NotFound from "./pages/not-found";
 
 const queryClient = new QueryClient();
 const NO_CHROME_ROUTES = ["/admin/login", "/login", "/register", "/dashboard", "/work-permit/payment-success", "/work-permit/payment-cancel", "/work-permit/pay"];
-
 function Layout({ children, path }: { children: React.ReactNode; path?: string }) {
   if (path === "/admin") return <div className="min-h-[100dvh]"><AdminToolsBar /><main>{children}</main></div>;
   const noChrome = path && NO_CHROME_ROUTES.some(r => path.startsWith(r));
   if (noChrome) return <>{children}</>;
   return <div className="flex flex-col min-h-[100dvh]"><Navbar /><main className="flex-1">{children}</main><Footer /></div>;
 }
-
-function AdminToolsBar() {
-  const { isAdmin } = useAuth();
-  if (!isAdmin) return null;
-  return <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-end gap-3 text-sm"><span>Admin:</span><Button asChild variant="secondary" size="sm"><Link href="/admin/manual">Manual Job Offer / Work Permit</Link></Button></div>;
-}
-
-function AdminEntry() {
-  const { isAdmin } = useAuth();
-  return isAdmin ? <Layout path="/admin"><Admin /></Layout> : <Layout path="/admin/login"><AdminLogin /></Layout>;
-}
-
-function Router() {
-  return <Switch>
-    <Route path="/admin/login">{() => <Layout path="/admin/login"><AdminLogin /></Layout>}</Route>
-    <Route path="/admin">{() => <AdminEntry />}</Route>
-    <Route path="/login">{() => <Layout path="/login"><ApplicantLogin /></Layout>}</Route>
-    <Route path="/register">{() => <Layout path="/register"><ApplicantRegister /></Layout>}</Route>
-    <Route path="/dashboard">{() => <Layout path="/dashboard"><ApplicantDashboard /></Layout>}</Route>
-    <Route path="/payment">{() => <Layout><Payment /></Layout>}</Route>
-    <Route path="/work-permit/payment-success">{() => <Layout path="/work-permit/payment-success"><PaymentSuccess /></Layout>}</Route>
-    <Route path="/work-permit/payment-cancel">{() => <Layout path="/work-permit/payment-cancel"><PaymentCancel /></Layout>}</Route>
-    <Route path="/work-permit/:id/pay">{() => <Layout path="/work-permit/pay"><WorkPermitPayment /></Layout>}</Route>
-    <Route path="/check-application" component={() => <Layout><ApplicationLookup /></Layout>} />
-    <Route path="/visa-apply" component={() => <Layout><VisaApply /></Layout>} />
-    <Route path="/" component={() => <Layout><Home /></Layout>} />
-    <Route path="/jobs" component={() => <Layout><Jobs /></Layout>} />
-    <Route path="/jobs/:id" component={() => <Layout><JobDetail /></Layout>} />
-    <Route path="/apply/:jobId" component={() => <Layout><Apply /></Layout>} />
-    <Route path="/letter-builder" component={() => <Layout><LetterBuilder /></Layout>} />
-    <Route path="/work-permit" component={() => <Layout><WorkPermit /></Layout>} />
-    <Route path="/about" component={() => <Layout><About /></Layout>} />
-    <Route path="/contact" component={() => <Layout><Contact /></Layout>} />
-    <Route path="/services" component={() => <Layout><Services /></Layout>} />
-    <Route path="/faq" component={() => <Layout><FAQ /></Layout>} />
-    <Route path="/privacy" component={() => <Layout><Privacy /></Layout>} />
-    <Route path="/terms" component={() => <Layout><Terms /></Layout>} />
-    <Route path="/admin/manual" component={() => <Layout path="/admin/manual"><AdminManual /></Layout>} />
-    <Route component={() => <Layout><NotFound /></Layout>} />
-  </Switch>;
-}
-
-function App() {
-  return <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}><I18nProvider><QueryClientProvider client={queryClient}><TooltipProvider><AuthProvider><WouterRouter base="/"><ErrorBoundary><Router /></ErrorBoundary></WouterRouter><Toaster /></AuthProvider></TooltipProvider></QueryClientProvider></I18nProvider></ThemeProvider>;
-}
-
+function AdminToolsBar() { const { isAdmin } = useAuth(); if (!isAdmin) return null; return <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-end gap-3 text-sm"><span>Admin:</span><Button asChild variant="secondary" size="sm"><Link href="/admin/chat">Live Chat</Link></Button><Button asChild variant="secondary" size="sm"><Link href="/admin/manual">Manual Job Offer / Work Permit</Link></Button></div>; }
+function AdminEntry() { const { isAdmin } = useAuth(); return isAdmin ? <Layout path="/admin"><Admin /></Layout> : <Layout path="/admin/login"><AdminLogin /></Layout>; }
+function AdminChatEntry() { const { isAdmin } = useAuth(); return isAdmin ? <AdminChat /> : <AdminLogin />; }
+function Router() { return <Switch>
+  <Route path="/admin/login">{() => <Layout path="/admin/login"><AdminLogin /></Layout>}</Route>
+  <Route path="/admin/chat">{() => <AdminChatEntry />}</Route>
+  <Route path="/admin">{() => <AdminEntry />}</Route>
+  <Route path="/login">{() => <Layout path="/login"><ApplicantLogin /></Layout>}</Route>
+  <Route path="/register">{() => <Layout path="/register"><ApplicantRegister /></Layout>}</Route>
+  <Route path="/dashboard">{() => <Layout path="/dashboard"><ApplicantDashboard /></Layout>}</Route>
+  <Route path="/payment">{() => <Layout><Payment /></Layout>}</Route>
+  <Route path="/work-permit/payment-success">{() => <Layout path="/work-permit/payment-success"><PaymentSuccess /></Layout>}</Route>
+  <Route path="/work-permit/payment-cancel">{() => <Layout path="/work-permit/payment-cancel"><PaymentCancel /></Layout>}</Route>
+  <Route path="/work-permit/:id/pay">{() => <Layout path="/work-permit/pay"><WorkPermitPayment /></Layout>}</Route>
+  <Route path="/check-application" component={() => <Layout><ApplicationLookup /></Layout>} />
+  <Route path="/visa-apply" component={() => <Layout><VisaApply /></Layout>} />
+  <Route path="/" component={() => <Layout><Home /></Layout>} />
+  <Route path="/jobs" component={() => <Layout><Jobs /></Layout>} />
+  <Route path="/jobs/:id" component={() => <Layout><JobDetail /></Layout>} />
+  <Route path="/apply/:jobId" component={() => <Layout><Apply /></Layout>} />
+  <Route path="/letter-builder" component={() => <Layout><LetterBuilder /></Layout>} />
+  <Route path="/work-permit" component={() => <Layout><WorkPermit /></Layout>} />
+  <Route path="/about" component={() => <Layout><About /></Layout>} />
+  <Route path="/contact" component={() => <Layout><Contact /></Layout>} />
+  <Route path="/services" component={() => <Layout><Services /></Layout>} />
+  <Route path="/faq" component={() => <Layout><FAQ /></Layout>} />
+  <Route path="/privacy" component={() => <Layout><Privacy /></Layout>} />
+  <Route path="/terms" component={() => <Layout><Terms /></Layout>} />
+  <Route path="/admin/manual" component={() => <Layout path="/admin/manual"><AdminManual /></Layout>} />
+  <Route component={() => <Layout><NotFound /></Layout>} />
+</Switch>; }
+function App() { return <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}><I18nProvider><QueryClientProvider client={queryClient}><TooltipProvider><AuthProvider><WouterRouter base="/"><ErrorBoundary><Router /></ErrorBoundary></WouterRouter><Toaster /></AuthProvider></TooltipProvider></QueryClientProvider></I18nProvider></ThemeProvider>; }
 export default App;
