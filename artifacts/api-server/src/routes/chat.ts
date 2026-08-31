@@ -17,10 +17,12 @@ router.post("/chat/conversations", async (req, res): Promise<void> => {
   try {
     const c = await client.query(`INSERT INTO chat_conversations (name,email,file_number) VALUES ($1,$2,$3) RETURNING *`, [String(name).trim(), String(email).trim(), fileNumber ? String(fileNumber).trim() : null]);
     const conversation = c.rows[0];
+    const welcome = "Welcome to Moldova. Thank you for contacting us. Your message has been received, and our admin will reply as soon as possible.";
     const m = await client.query(`INSERT INTO chat_messages (conversation_id,sender,message) VALUES ($1,'user',$2) RETURNING *`, [conversation.id, String(message).trim()]);
+    const w = await client.query(`INSERT INTO chat_messages (conversation_id,sender,message) VALUES ($1,'admin',$2) RETURNING *`, [conversation.id, welcome]);
     await client.query(`UPDATE chat_conversations SET last_message_at=NOW() WHERE id=$1`, [conversation.id]);
     sendEmail({ to: adminEmail(), subject: `New Live Chat Message — ${conversation.name}`, html: `<h2>New Live Chat Message</h2><p><b>Name:</b> ${conversation.name}</p><p><b>Email:</b> ${conversation.email}</p><p><b>File Number:</b> ${conversation.file_number || "Not provided"}</p><p>${String(message).trim()}</p><p>Open the Admin Dashboard to reply.</p>` }).catch(() => {});
-    res.status(201).json({ conversation, token: accessToken(conversation.id), messages: [m.rows[0]] });
+    res.status(201).json({ conversation, token: accessToken(conversation.id), messages: [m.rows[0], w.rows[0]] });
   } finally { client.release(); }
 });
 
