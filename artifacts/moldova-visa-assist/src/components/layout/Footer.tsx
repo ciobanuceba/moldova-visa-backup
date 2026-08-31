@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Globe, Mail, MapPin, Phone } from "lucide-react";
+import { Mail, MapPin, Phone } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 export function Footer() {
@@ -11,10 +11,8 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
           {/* Brand */}
           <div className="space-y-4 lg:col-span-1">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-primary">
-                <Globe className="h-5 w-5" />
-              </div>
+            <Link href="/" className="flex items-center space-x-3">
+              <img src="/moldova_logo.png" alt="Moldova Visa Assist" className="h-12 w-auto max-w-[180px] object-contain" />
               <span className="font-serif text-xl font-bold tracking-tight text-white">
                 Moldova Visa Assist
               </span>
