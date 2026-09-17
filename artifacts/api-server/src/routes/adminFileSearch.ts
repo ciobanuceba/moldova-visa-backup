@@ -4,7 +4,7 @@ import { pool } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin";
 
 const router: IRouter = Router();
-router.use(requireAdmin);
+router.use("/admin", requireAdmin);
 const selectFields = `id, reference_number, first_name, last_name, email, phone, nationality, date_of_birth, passport_number, passport_expiry, current_address, permit_type, employer_name, employer_country, job_title, job_salary, start_date, contract_duration, has_passport, has_job_offer, has_medical_cert, has_criminal_record, has_photos, has_education_cert, passport_copy_data, photo_data, medical_cert_data, criminal_record_data, status, payment_status, payment_method, receipt_url, receipt_filename, payment_rejection_reason, admin_notes, created_at`;
 function text(v: unknown, fallback = ""): string { return typeof v === "string" && v.trim() ? v.trim() : fallback; }
 function dataUrl(v: unknown): string | null { return typeof v === "string" && v.startsWith("data:") && v.includes(";base64,") && v.length <= 4_000_000 ? v : null; }
