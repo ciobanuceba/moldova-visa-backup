@@ -25,6 +25,7 @@ export const applicationsTable = pgTable("applications", {
   photoData: text("photo_data"),
   medicalCertData: text("medical_cert_data"),
   criminalRecordData: text("criminal_record_data"),
+  employerLogoData: text("employer_logo_data"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
