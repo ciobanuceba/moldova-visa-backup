@@ -11,7 +11,7 @@ router.get("/public/applications/:referenceNumber", async (req,res):Promise<void
   if(!/^MVA-(?:\d{4}-[A-F0-9]{6}|APP-[A-F0-9]{10}|VISA-[A-F0-9]{10})$/.test(referenceNumber)){ res.status(400).json({error:"Invalid reference number"}); return; }
   try {
     if(referenceNumber.startsWith("MVA-VISA-")){
-      const rows=await db.select({ firstName:applicationsTable.firstName,lastName:applicationsTable.lastName,passportNumber:applicationsTable.passportNumber,coverLetter:applicationsTable.coverLetter,status:applicationsTable.status,createdAt:applicationsTable.createdAt }).from(applicationsTable).where(eq(applicationsTable.jobId,0));
+      const rows=await db.select({ referenceNumber:applicationsTable.referenceNumber, firstName:applicationsTable.firstName,lastName:applicationsTable.lastName,passportNumber:applicationsTable.passportNumber,coverLetter:applicationsTable.coverLetter,status:applicationsTable.status,createdAt:applicationsTable.createdAt }).from(applicationsTable).where(eq(applicationsTable.jobId,0));
       const app=rows.find(row=>{ try { const d=JSON.parse(row.coverLetter||"{}"); return d.type==="visa" && visaReference({firstName:row.firstName,lastName:row.lastName,passportNumber:row.passportNumber||"",visaType:d.visaType||"",travelDate:d.travelDate||""})===referenceNumber; } catch { return false; } });
       if(!app){res.status(404).json({error:"Visa application not found"});return;}
       const d=JSON.parse(app.coverLetter||"{}"); const status=app.status||"pending"; const publicStatus=status==="pending"?"received":status;
