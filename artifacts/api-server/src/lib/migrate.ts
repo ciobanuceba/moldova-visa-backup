@@ -8,16 +8,29 @@ export async function runMigrations(): Promise<void> {
     await client.query(`CREATE TABLE IF NOT EXISTS jobs (id SERIAL PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL, location TEXT NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, requirements TEXT NOT NULL, salary TEXT NOT NULL, benefits TEXT, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
     await client.query(`CREATE TABLE IF NOT EXISTS applications (id SERIAL PRIMARY KEY, job_id INTEGER NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, nationality TEXT, date_of_birth TEXT, passport_number TEXT, years_experience TEXT, skills TEXT, languages TEXT, available_from TEXT, resume_url TEXT, cover_letter TEXT, experience TEXT, status TEXT NOT NULL DEFAULT 'pending', admin_notes TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
 
-    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS reference_number TEXT UNIQUE;`);
+    await client.query(`ALTER TABLE applications
+      ADD COLUMN IF NOT EXISTS reference_number TEXT,
+      ADD COLUMN IF NOT EXISTS passport_copy_data TEXT,
+      ADD COLUMN IF NOT EXISTS photo_data TEXT,
+      ADD COLUMN IF NOT EXISTS medical_cert_data TEXT,
+      ADD COLUMN IF NOT EXISTS criminal_record_data TEXT,
+      ADD COLUMN IF NOT EXISTS employer_name TEXT,
+      ADD COLUMN IF NOT EXISTS employer_country TEXT,
+      ADD COLUMN IF NOT EXISTS employer_logo_data TEXT`);
+
     const { rows: apps } = await client.query(`SELECT a.id, a.first_name, a.last_name, a.available_from, j.title, j.location, j.salary FROM applications a LEFT JOIN jobs j ON j.id = a.job_id WHERE a.reference_number IS NULL`);
     for (const a of apps) {
       if (!a.title || !a.location || !a.salary) continue;
       const raw = [a.first_name + " " + a.last_name, a.title, a.location, a.salary, a.available_from || ""].join("|");
-      const ref = "MVA-APP-" + createHash("sha256").update(raw).digest("hex").slice(0,10).toUpperCase();
+      const base = "MVA-APP-" + createHash("sha256").update(raw).digest("hex").slice(0,10).toUpperCase();
+      let ref = base;
+      const existing = await client.query("SELECT id FROM applications WHERE reference_number = $1 LIMIT 1", [ref]);
+      if (existing.rows.length) ref = base + "-" + String(a.id);
       await client.query("UPDATE applications SET reference_number = $1 WHERE id = $2 AND reference_number IS NULL", [ref, a.id]);
     }
+
     await client.query(`CREATE TABLE IF NOT EXISTS contacts (id SERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT, subject TEXT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
-    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS nationality TEXT, ADD COLUMN IF NOT EXISTS date_of_birth TEXT, ADD COLUMN IF NOT EXISTS passport_number TEXT, ADD COLUMN IF NOT EXISTS years_experience TEXT, ADD COLUMN IF NOT EXISTS skills TEXT, ADD COLUMN IF NOT EXISTS languages TEXT, ADD COLUMN IF NOT EXISTS available_from TEXT, ADD COLUMN IF NOT EXISTS resume_url TEXT, ADD COLUMN IF NOT EXISTS admin_notes TEXT, ADD COLUMN IF NOT EXISTS passport_copy_data TEXT, ADD COLUMN IF NOT EXISTS photo_data TEXT, ADD COLUMN IF NOT EXISTS medical_cert_data TEXT, ADD COLUMN IF NOT EXISTS criminal_record_data TEXT, ADD COLUMN IF NOT EXISTS employer_name TEXT, ADD COLUMN IF NOT EXISTS employer_country TEXT, ADD COLUMN IF NOT EXISTS employer_logo_data TEXT, ADD COLUMN IF NOT EXISTS reference_number TEXT UNIQUE;`);
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS nationality TEXT, ADD COLUMN IF NOT EXISTS date_of_birth TEXT, ADD COLUMN IF NOT EXISTS passport_number TEXT, ADD COLUMN IF NOT EXISTS years_experience TEXT, ADD COLUMN IF NOT EXISTS skills TEXT, ADD COLUMN IF NOT EXISTS languages TEXT, ADD COLUMN IF NOT EXISTS available_from TEXT, ADD COLUMN IF NOT EXISTS resume_url TEXT, ADD COLUMN IF NOT EXISTS admin_notes TEXT;`);
     await client.query(`CREATE TABLE IF NOT EXISTS work_permits (id SERIAL PRIMARY KEY, reference_number TEXT NOT NULL UNIQUE, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, nationality TEXT NOT NULL, date_of_birth TEXT NOT NULL, passport_number TEXT NOT NULL, passport_expiry TEXT NOT NULL, current_address TEXT NOT NULL, permit_type TEXT NOT NULL, employer_name TEXT NOT NULL, employer_country TEXT NOT NULL, job_title TEXT NOT NULL, job_salary TEXT NOT NULL, start_date TEXT NOT NULL, contract_duration TEXT NOT NULL, has_passport BOOLEAN NOT NULL DEFAULT FALSE, has_job_offer BOOLEAN NOT NULL DEFAULT FALSE, has_medical_cert BOOLEAN NOT NULL DEFAULT FALSE, has_criminal_record BOOLEAN NOT NULL DEFAULT FALSE, has_photos BOOLEAN NOT NULL DEFAULT FALSE, has_education_cert BOOLEAN NOT NULL DEFAULT FALSE, status TEXT NOT NULL DEFAULT 'submitted', admin_notes TEXT, payment_status TEXT NOT NULL DEFAULT 'unpaid', stripe_session_id TEXT, stripe_payment_intent_id TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
     await client.query(`ALTER TABLE work_permits ADD COLUMN IF NOT EXISTS passport_copy_data TEXT, ADD COLUMN IF NOT EXISTS photo_data TEXT, ADD COLUMN IF NOT EXISTS medical_cert_data TEXT, ADD COLUMN IF NOT EXISTS criminal_record_data TEXT, ADD COLUMN IF NOT EXISTS admin_notes TEXT, ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid', ADD COLUMN IF NOT EXISTS stripe_session_id TEXT, ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT, ADD COLUMN IF NOT EXISTS payment_method TEXT, ADD COLUMN IF NOT EXISTS receipt_url TEXT, ADD COLUMN IF NOT EXISTS receipt_filename TEXT, ADD COLUMN IF NOT EXISTS receipt_uploaded_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS payment_reviewed_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS employer_logo_data TEXT, ADD COLUMN IF NOT EXISTS payment_rejection_reason TEXT, ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS valid_until TIMESTAMPTZ;`);
     await client.query(`CREATE TABLE IF NOT EXISTS applicant_users (id SERIAL PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
