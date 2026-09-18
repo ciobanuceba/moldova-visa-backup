@@ -32,6 +32,7 @@ interface WorkPermit {
   reference_number: string;
   permit_type: string;
   employer_name: string;
+  company_name?: string | null;
   employer_country: string;
   job_title: string;
   status: string;
@@ -165,7 +166,9 @@ export default function ApplicantDashboard() {
                   </div>
                   {isOpen && <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <p><span className="font-medium">Permit Type:</span> {wp.permit_type || "—"}</p>
-                    <p><span className="font-medium">Employer:</span> {wp.employer_name || "—"}{wp.employer_country ? ", " + wp.employer_country : ""}</p>
+                    <p><span className="font-medium">Employer Name:</span> {wp.employer_name || "—"}</p>
+                    <p><span className="font-medium">Company Name:</span> {wp.company_name || "—"}</p>
+                    <p><span className="font-medium">Employer Country:</span> {wp.employer_country || "—"}</p>
                     <p><span className="font-medium">Payment:</span> {wp.payment_status || "—"}{wp.payment_method ? " · " + wp.payment_method : ""}</p>
                     {wp.admin_notes && <p className="md:col-span-2 p-3 bg-muted rounded-lg"><span className="font-medium">Admin Update:</span> {wp.admin_notes}</p>}
                   </div>}
