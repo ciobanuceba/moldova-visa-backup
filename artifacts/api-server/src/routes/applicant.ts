@@ -13,7 +13,7 @@ router.get("/applicant/applications", async (req, res): Promise<void> => {
   try {
     const { rows } = await client.query(
       `SELECT a.id, a.job_id, a.reference_number, a.first_name, a.last_name, a.email, a.status,
-              a.created_at, a.admin_notes, a.employer_name, a.employer_country,
+              a.created_at, a.admin_notes, a.employer_name, a.employer_country,\n              a.nationality, a.date_of_birth, a.years_experience, a.skills, a.languages, a.available_from, a.cover_letter,
               j.title as job_title, j.location, j.salary, j.category
        FROM applications a
        LEFT JOIN jobs j ON j.id = a.job_id
