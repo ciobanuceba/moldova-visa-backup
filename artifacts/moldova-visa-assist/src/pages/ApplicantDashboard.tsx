@@ -6,6 +6,7 @@ import { useAuth, authHeaders } from "@/lib/auth";
 
 interface Application {
   id: number;
+  reference_number?: string | null;
   job_title: string;
   location: string;
   salary: string;
@@ -13,6 +14,8 @@ interface Application {
   status: string;
   created_at: string;
   admin_notes?: string;
+  employer_name?: string | null;
+  employer_country?: string | null;
 }
 
 interface WorkPermit {
@@ -114,10 +117,14 @@ export default function ApplicantDashboard() {
                 <div key={app.id} className="bg-card border rounded-xl p-5 flex flex-col md:flex-row md:items-center gap-4">
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-primary">{app.job_title ?? "Position"}</h3>
+                      <div>
+                        <h3 className="font-semibold text-primary">{app.job_title ?? "Position"}</h3>
+                        {app.reference_number && <p className="text-xs font-mono text-muted-foreground mt-0.5">{app.reference_number}</p>}
+                      </div>
                       <StatusBadge status={app.status} />
                     </div>
                     <p className="text-sm text-muted-foreground">{app.location} · {app.salary}</p>
+                    {app.employer_name && <p className="text-sm text-muted-foreground mt-1">Employer: {app.employer_name}{app.employer_country ? ", " + app.employer_country : ""}</p>}
                     {app.admin_notes && app.status !== "pending" && (
                       <p className="text-sm mt-2 p-2 bg-muted rounded-lg">
                         <span className="font-medium">Note: </span>{app.admin_notes}
