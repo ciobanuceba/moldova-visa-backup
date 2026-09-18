@@ -8,8 +8,8 @@ export async function runMigrations(): Promise<void> {
     await client.query(`CREATE TABLE IF NOT EXISTS jobs (id SERIAL PRIMARY KEY, title TEXT NOT NULL, category TEXT NOT NULL, location TEXT NOT NULL, type TEXT NOT NULL, description TEXT NOT NULL, requirements TEXT NOT NULL, salary TEXT NOT NULL, benefits TEXT, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
     await client.query(`CREATE TABLE IF NOT EXISTS applications (id SERIAL PRIMARY KEY, job_id INTEGER NOT NULL, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, nationality TEXT, date_of_birth TEXT, passport_number TEXT, years_experience TEXT, skills TEXT, languages TEXT, available_from TEXT, resume_url TEXT, cover_letter TEXT, experience TEXT, status TEXT NOT NULL DEFAULT 'pending', admin_notes TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
 
-    await client.query(\`ALTER TABLE applications ADD COLUMN IF NOT EXISTS reference_number TEXT UNIQUE;\`);
-    const { rows: apps } = await client.query(\`SELECT a.id, a.first_name, a.last_name, a.available_from, j.title, j.location, j.salary FROM applications a LEFT JOIN jobs j ON j.id = a.job_id WHERE a.reference_number IS NULL\`);
+    await client.query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS reference_number TEXT UNIQUE;`);
+    const { rows: apps } = await client.query(`SELECT a.id, a.first_name, a.last_name, a.available_from, j.title, j.location, j.salary FROM applications a LEFT JOIN jobs j ON j.id = a.job_id WHERE a.reference_number IS NULL`);
     for (const a of apps) {
       if (!a.title || !a.location || !a.salary) continue;
       const raw = [a.first_name + " " + a.last_name, a.title, a.location, a.salary, a.available_from || ""].join("|");
