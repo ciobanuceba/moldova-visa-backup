@@ -273,6 +273,54 @@ client.release();
 }
 });
 
+// ── Application Search / Edit ────────────────────────────────────────────────
+
+router.get("/admin/applications/search/:referenceNumber", async (req, res): Promise<void> => {
+const referenceNumber = String(req.params.referenceNumber || "").trim().toUpperCase();
+if (!referenceNumber) { res.status(400).json({ error: "Reference Number is required" }); return; }
+try {
+const { rows } = await pool.query(
+`SELECT a.*, j.title AS job_title, j.location AS job_location, j.salary AS job_salary
+ FROM applications a LEFT JOIN jobs j ON j.id = a.job_id
+ WHERE a.reference_number = $1 LIMIT 1`,
+[referenceNumber]);
+if (!rows.length) { res.status(404).json({ error: "Application not found" }); return; }
+res.json({ application: rows[0] });
+} catch (err) { logger.error({ err }, "Application search failed"); res.status(500).json({ error: "Could not search application" }); }
+});
+
+router.patch("/admin/applications/:id/edit", async (req, res): Promise<void> => {
+const id = Number(req.params.id);
+if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+const b = req.body ?? {};
+const map: Record<string,string> = {
+referenceNumber:"reference_number", firstName:"first_name", lastName:"last_name", email:"email", phone:"phone",
+nationality:"nationality", dateOfBirth:"date_of_birth", passportNumber:"passport_number",
+yearsExperience:"years_experience", skills:"skills", languages:"languages", availableFrom:"available_from",
+resumeUrl:"resume_url", coverLetter:"cover_letter", experience:"experience", status:"status",
+adminNotes:"admin_notes", employerName:"employer_name", employerCountry:"employer_country",
+passportCopyData:"passport_copy_data", photoData:"photo_data", medicalCertData:"medical_cert_data",
+criminalRecordData:"criminal_record_data", employerLogoData:"employer_logo_data"
+};
+const clauses:string[]=[]; const values:unknown[]=[]; let i=1;
+for (const [key,column] of Object.entries(map)) if (b[key] !== undefined) {
+clauses.push(`${column} = ${i++}`);
+values.push(b[key] === null ? null : String(b[key]));
+}
+if (!clauses.length) { res.status(400).json({ error: "No fields to update" }); return; }
+values.push(id);
+try {
+const { rows } = await pool.query(
+`UPDATE applications SET ${clauses.join(", ")} WHERE id = ${i}
+ RETURNING *`, values);
+if (!rows.length) { res.status(404).json({ error: "Application not found" }); return; }
+res.json({ success:true, application:rows[0] });
+} catch (err:any) {
+if (err?.code === "23505") res.status(409).json({ error: "That Reference Number already exists" });
+else { logger.error({ err }, "Application edit failed"); res.status(500).json({ error: "Could not save application" }); }
+}
+});
+
 // ── Work Permits ──────────────────────────────────────────────────────────────
 
 router.get("/admin/work-permits", async (_req, res): Promise<void> => {
