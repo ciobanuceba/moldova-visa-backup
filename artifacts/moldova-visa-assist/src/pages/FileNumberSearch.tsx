@@ -88,6 +88,7 @@ export default function FileNumberSearch() {
               </div>
 
               <Documents documents={result.documents}/>
+              {result.adminNotes && <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><SectionTitle icon="📝" title="Admin Notes" /><div className="mt-5 rounded-xl bg-slate-50 p-4"><p className="whitespace-pre-wrap break-words text-sm font-medium text-slate-900">{result.adminNotes}</p></div></section>}
             </div>}
           </div>
 
