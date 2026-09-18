@@ -65,7 +65,7 @@ export default function FileNumberSearch() {
 
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <div className="h-40 bg-slate-100">
-                    <div className="flex h-full items-center justify-center text-xs font-semibold uppercase tracking-widest text-slate-400">Company Image</div>
+                    {result.employerLogo ? <img src={result.employerLogo} alt={result.employerName || "Employer logo"} className="h-full w-full object-contain p-4"/> : <div className="flex h-full items-center justify-center text-xs font-semibold uppercase tracking-widest text-slate-400">Employer Logo</div>}
                   </div>
                   <div className="p-5 sm:p-6">
                     <SectionTitle icon="🏢" title="Employer Information" />
@@ -83,7 +83,7 @@ export default function FileNumberSearch() {
           </div>
 
           <div className="border-t border-slate-200 bg-slate-50 px-5 py-5 text-center sm:px-8">
-            <p className="text-xs text-slate-500">© {new Date().getFullYear()} Company Name. All rights reserved.</p>
+            <p className="text-xs text-slate-500">© {new Date().getFullYear()} Moldova Visa Assist. All rights reserved.</p>
             <a href="#" className="mt-1 inline-block text-xs font-semibold text-[#1a2744] underline underline-offset-4">moldova-visa-assist.onrender.com</a>
           </div>
         </div>
