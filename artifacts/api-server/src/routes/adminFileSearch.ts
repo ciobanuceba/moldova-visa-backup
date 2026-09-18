@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes } from "crypto";
 import { pool } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin";
 
@@ -9,29 +9,12 @@ const selectFields = `id, reference_number, first_name, last_name, email, phone,
 function text(v: unknown, fallback = ""): string { return typeof v === "string" && v.trim() ? v.trim() : fallback; }
 function dataUrl(v: unknown): string | null { return typeof v === "string" && v.startsWith("data:") && v.includes(";base64,") && v.length <= 4_000_000 ? v : null; }
 function newReference(): string { return `MVA-ADM-${new Date().getFullYear()}-${randomBytes(4).toString("hex").toUpperCase()}`; }
-function offerReference(app: { firstName:string; lastName:string; jobTitle:string; location:string; salary:string; startDate?:string|null }): string { return `MVA-APP-${createHash("sha256").update([`${app.firstName} ${app.lastName}`,app.jobTitle,app.location,app.salary,app.startDate||""].join("|")).digest("hex").slice(0,10).toUpperCase()}`; }
-
 router.get("/admin/file-search/:referenceNumber", async (req, res): Promise<void> => {
   const referenceNumber = text(req.params.referenceNumber).toUpperCase();
   if (!referenceNumber) { res.status(400).json({ error: "File Number is required" }); return; }
   const { rows } = await pool.query(`SELECT ${selectFields} FROM work_permits WHERE reference_number = $1 LIMIT 1`, [referenceNumber]);
   if (rows.length) { res.json({ application: rows[0], sourceType: "work_permit" }); return; }
-  if (referenceNumber.startsWith("MVA-APP-")) {
-    const { rows: apps } = await pool.query(`SELECT a.id, a.reference_number, a.first_name, a.last_name, a.email, a.phone, a.nationality, a.date_of_birth, a.passport_number, a.available_from, a.status, a.admin_notes, a.employer_name, a.employer_country, a.passport_copy_data, a.photo_data, a.medical_cert_data, a.criminal_record_data, a.employer_logo_data, a.reference_number, a.created_at, j.title AS job_title, j.salary AS job_salary, j.location AS location, j.id AS job_id FROM applications a LEFT JOIN jobs j ON j.id = a.job_id`);
-    const app = apps.find((row:any) => row.reference_number === referenceNumber || (row.job_title && row.location && row.job_salary && offerReference({firstName:row.first_name,lastName:row.last_name,jobTitle:row.job_title,location:row.location,salary:row.job_salary,startDate:row.available_from}) === referenceNumber));
-    if (app) {
-      res.json({ application: {
-        id: app.id, reference_number: app.reference_number || referenceNumber, first_name: app.first_name, last_name: app.last_name, email: app.email, phone: app.phone,
-        nationality: app.nationality, date_of_birth: app.date_of_birth, passport_number: app.passport_number, passport_expiry: "",
-        current_address: "", permit_type: "Job Application", employer_name: app.employer_name || "", employer_country: app.employer_country || "Moldova",
-        job_title: app.job_title, job_salary: app.job_salary, start_date: app.available_from, contract_duration: "",
-        status: app.status, admin_notes: app.admin_notes, payment_status: "unpaid", payment_method: "",
-        passport_copy_data: app.passport_copy_data, photo_data: app.photo_data, medical_cert_data: app.medical_cert_data,
-        criminal_record_data: app.criminal_record_data, employer_logo_data: app.employer_logo_data, source_type: "application", job_id: app.job_id, created_at: app.created_at
-      }, sourceType: "application" }); return;
-    }
-  }
-  res.status(404).json({ error: "Application not found" });
+  res.status(404).json({ error: "File Number not found" });
 });
 
 router.post("/admin/file-search", async (req, res): Promise<void> => {
