@@ -48,33 +48,4 @@ router.patch("/admin/file-search/:id", async (req, res): Promise<void> => {
   catch(err:any){ if(err?.code==="23505") res.status(409).json({error:"That File Number already exists"}); else {console.error(err);res.status(500).json({error:"Could not save changes"});} }
 });
 
-router.delete("/admin/file-search/application/:id", async (req, res): Promise<void> => {
-  const id = Number(req.params.id); if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  try { const result = await pool.query("DELETE FROM applications WHERE id = $1", [id]); if (!result.rowCount) { res.status(404).json({ error: "File not found" }); return; } res.json({ success: true }); }
-  catch (err) { console.error(err); res.status(500).json({ error: "Could not delete file" }); }
-});
-
-router.patch("/admin/file-search/application/:id", async (req, res): Promise<void> => {
-  const id = Number(req.params.id); if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const b = req.body ?? {};
-  const map: Record<string,string> = { referenceNumber:"reference_number", firstName:"first_name", lastName:"last_name", email:"email", phone:"phone", nationality:"nationality", dateOfBirth:"date_of_birth", passportNumber:"passport_number", startDate:"available_from", status:"status", adminNotes:"admin_notes", employerName:"employer_name", employerCountry:"employer_country", passportCopyData:"passport_copy_data", photoData:"photo_data", medicalCertData:"medical_cert_data", criminalRecordData:"criminal_record_data", employerLogoData:"employer_logo_data" };
-  const clauses:string[]=[]; const values:unknown[]=[]; let i=1;
-  for (const [key,column] of Object.entries(map)) if (b[key] !== undefined) {
-    clauses.push(column + " = $" + i++);
-    if (["passportCopyData","photoData","medicalCertData","criminalRecordData"].includes(key)) values.push(b[key] === null || b[key] === "" ? null : dataUrl(b[key]));
-    else values.push(b[key] === null ? null : text(b[key]));
-  }
-  if (!clauses.length) { res.status(400).json({ error: "No fields to update" }); return; }
-  values.push(id);
-  try {
-    const { rows } = await pool.query("UPDATE applications SET " + clauses.join(", ") + " WHERE id = $" + i + " RETURNING id, first_name, last_name, email, phone, nationality, date_of_birth, passport_number, available_from, status, admin_notes, employer_name, employer_country, passport_copy_data, photo_data, medical_cert_data, criminal_record_data, created_at, job_id, reference_number, employer_logo_data", values);
-    if (!rows.length) { res.status(404).json({ error: "Application not found" }); return; }
-    const a = rows[0];
-    if (b.jobTitle !== undefined || b.jobSalary !== undefined) await pool.query("UPDATE jobs SET title = COALESCE($1, title), salary = COALESCE($2, salary) WHERE id = $3", [b.jobTitle === undefined ? null : text(b.jobTitle), b.jobSalary === undefined ? null : text(b.jobSalary), a.job_id]);
-    const { rows: jobs } = await pool.query("SELECT title, location, salary FROM jobs WHERE id = $1 LIMIT 1", [a.job_id]);
-    const job = jobs[0];
-    const reference = a.reference_number || (job ? offerReference({firstName:a.first_name,lastName:a.last_name,jobTitle:job.title,location:job.location,salary:job.salary,startDate:a.available_from}) : "");
-    res.json({ success:true, application:{...a, reference_number:reference, job_title:job?.title||"", job_salary:job?.salary||"", location:job?.location||"", source_type:"application"} });
-  } catch(err) { console.error(err); res.status(500).json({error:"Could not save changes"}); }
-});
 export default router;
