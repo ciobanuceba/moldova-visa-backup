@@ -21,6 +21,10 @@ export const applicationsTable = pgTable("applications", {
   experience: text("experience"),
   status: text("status").notNull().default("pending"),
   adminNotes: text("admin_notes"),
+  passportCopyData: text("passport_copy_data"),
+  photoData: text("photo_data"),
+  medicalCertData: text("medical_cert_data"),
+  criminalRecordData: text("criminal_record_data"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
