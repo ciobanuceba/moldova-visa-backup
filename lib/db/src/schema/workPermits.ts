@@ -31,6 +31,7 @@ export const workPermitsTable = pgTable("work_permits", {
   photoData: text("photo_data"),
   medicalCertData: text("medical_cert_data"),
   criminalRecordData: text("criminal_record_data"),
+  employerLogoData: text("employer_logo_data"),
   status: text("status").notNull().default("submitted"),
   adminNotes: text("admin_notes"),
   paymentStatus: text("payment_status").notNull().default("unpaid"),
