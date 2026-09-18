@@ -75,7 +75,7 @@ router.patch("/admin/file-search/application/:id", async (req, res): Promise<voi
     const { rows } = await pool.query("UPDATE applications SET " + clauses.join(", ") + " WHERE id = $" + i + " RETURNING id, first_name, last_name, email, phone, nationality, date_of_birth, passport_number, available_from, status, admin_notes, passport_copy_data, photo_data, medical_cert_data, criminal_record_data, created_at", values);
     if (!rows.length) { res.status(404).json({ error: "Application not found" }); return; }
     const a = rows[0];
-    res.json({ success:true, application:{...a, reference_number: referenceNumber, source_type:"application"} });
+    res.json({ success:true, application:{...a, reference_number: `MVA-APP-${offerReference({firstName:a.first_name,lastName:a.last_name,jobTitle:"",location:"",salary:"",startDate:a.available_from}).slice(8)}`, source_type:"application"} });
   } catch(err) { console.error(err); res.status(500).json({error:"Could not save changes"}); }
 });
 export default router;
