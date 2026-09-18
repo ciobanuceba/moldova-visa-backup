@@ -78,7 +78,8 @@ export default function FileNumberSearch() {
                   <div className="p-5 sm:p-6">
                     <SectionTitle icon="🏢" title="Employer Information" />
                     <div className="mt-5 space-y-4">
-                      <Info label="Company Name" value={result.employerName}/>
+                      <Info label="Employer Name" value={result.employerName}/>
+                      <Info label="Company Name" value={result.companyName}/>
                       <Info label="Employer Country" value={result.employerCountry}/>
                       <Info label="Salary" value={result.jobSalary}/>
                     </div>
