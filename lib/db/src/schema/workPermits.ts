@@ -16,6 +16,7 @@ export const workPermitsTable = pgTable("work_permits", {
   currentAddress: text("current_address").notNull(),
   permitType: text("permit_type").notNull(),
   employerName: text("employer_name").notNull(),
+  companyName: text("company_name"),
   employerCountry: text("employer_country").notNull(),
   jobTitle: text("job_title").notNull(),
   jobSalary: text("job_salary").notNull(),
@@ -47,19 +48,9 @@ export const workPermitsTable = pgTable("work_permits", {
 });
 
 export const insertWorkPermitSchema = createInsertSchema(workPermitsTable).omit({
-  id: true,
-  createdAt: true,
-  status: true,
-  referenceNumber: true,
-  adminNotes: true,
-  paymentStatus: true,
-  stripeSessionId: true,
-  stripePaymentIntentId: true,
-  paymentMethod: true,
-  receiptUrl: true,
-  receiptFilename: true,
-  receiptUploadedAt: true,
-  paymentReviewedAt: true,
+  id: true, createdAt: true, status: true, referenceNumber: true, adminNotes: true,
+  paymentStatus: true, stripeSessionId: true, stripePaymentIntentId: true, paymentMethod: true,
+  receiptUrl: true, receiptFilename: true, receiptUploadedAt: true, paymentReviewedAt: true,
   paymentRejectionReason: true,
 });
 export type InsertWorkPermit = z.infer<typeof insertWorkPermitSchema>;
