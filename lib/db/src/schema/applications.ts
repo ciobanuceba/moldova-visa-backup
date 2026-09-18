@@ -22,6 +22,8 @@ export const applicationsTable = pgTable("applications", {
   experience: text("experience"),
   status: text("status").notNull().default("pending"),
   adminNotes: text("admin_notes"),
+  employerName: text("employer_name"),
+  employerCountry: text("employer_country"),
   passportCopyData: text("passport_copy_data"),
   photoData: text("photo_data"),
   medicalCertData: text("medical_cert_data"),
