@@ -17,11 +17,11 @@ router.get("/admin/file-search/:referenceNumber", async (req, res): Promise<void
   const { rows } = await pool.query(`SELECT ${selectFields} FROM work_permits WHERE reference_number = $1 LIMIT 1`, [referenceNumber]);
   if (rows.length) { res.json({ application: rows[0], sourceType: "work_permit" }); return; }
   if (referenceNumber.startsWith("MVA-APP-")) {
-    const { rows: apps } = await pool.query(`SELECT a.id, a.first_name, a.last_name, a.email, a.phone, a.nationality, a.date_of_birth, a.passport_number, a.available_from, a.status, a.admin_notes, a.passport_copy_data, a.photo_data, a.medical_cert_data, a.criminal_record_data, a.created_at, j.title AS job_title, j.salary AS job_salary, j.location AS location, j.id AS job_id FROM applications a LEFT JOIN jobs j ON j.id = a.job_id`);
-    const app = apps.find((row:any) => row.job_title && row.location && row.job_salary && offerReference({firstName:row.first_name,lastName:row.last_name,jobTitle:row.job_title,location:row.location,salary:row.job_salary,startDate:row.available_from}) === referenceNumber);
+    const { rows: apps } = await pool.query(`SELECT a.id, a.reference_number, a.first_name, a.last_name, a.email, a.phone, a.nationality, a.date_of_birth, a.passport_number, a.available_from, a.status, a.admin_notes, a.passport_copy_data, a.photo_data, a.medical_cert_data, a.criminal_record_data, a.created_at, j.title AS job_title, j.salary AS job_salary, j.location AS location, j.id AS job_id FROM applications a LEFT JOIN jobs j ON j.id = a.job_id`);
+    const app = apps.find((row:any) => row.reference_number === referenceNumber || (row.job_title && row.location && row.job_salary && offerReference({firstName:row.first_name,lastName:row.last_name,jobTitle:row.job_title,location:row.location,salary:row.job_salary,startDate:row.available_from}) === referenceNumber));
     if (app) {
       res.json({ application: {
-        id: app.id, reference_number: referenceNumber, first_name: app.first_name, last_name: app.last_name, email: app.email, phone: app.phone,
+        id: app.id, reference_number: app.reference_number || referenceNumber, first_name: app.first_name, last_name: app.last_name, email: app.email, phone: app.phone,
         nationality: app.nationality, date_of_birth: app.date_of_birth, passport_number: app.passport_number, passport_expiry: "",
         current_address: "", permit_type: "Job Application", employer_name: "", employer_country: "Moldova",
         job_title: app.job_title, job_salary: app.job_salary, start_date: app.available_from, contract_duration: "",
@@ -62,7 +62,7 @@ router.delete("/admin/file-search/:id", async (req, res): Promise<void> => {\n  
 router.delete("/admin/file-search/application/:id", async (req, res): Promise<void> => {\n  const id = Number(req.params.id); if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }\n  try { const result = await pool.query("DELETE FROM applications WHERE id = $1", [id]); if (!result.rowCount) { res.status(404).json({ error: "File not found" }); return; } res.json({ success: true }); }\n  catch (err) { console.error(err); res.status(500).json({ error: "Could not delete file" }); }\n});\n\nrouter.patch("/admin/file-search/application/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id); if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const b = req.body ?? {};
-  const map: Record<string,string> = { firstName:"first_name", lastName:"last_name", email:"email", phone:"phone", nationality:"nationality", dateOfBirth:"date_of_birth", passportNumber:"passport_number", startDate:"available_from", status:"status", adminNotes:"admin_notes", passportCopyData:"passport_copy_data", photoData:"photo_data", medicalCertData:"medical_cert_data", criminalRecordData:"criminal_record_data", employerLogoData:"employer_logo_data" };
+  const map: Record<string,string> = { referenceNumber:"reference_number", firstName:"first_name", lastName:"last_name", email:"email", phone:"phone", nationality:"nationality", dateOfBirth:"date_of_birth", passportNumber:"passport_number", startDate:"available_from", status:"status", adminNotes:"admin_notes", passportCopyData:"passport_copy_data", photoData:"photo_data", medicalCertData:"medical_cert_data", criminalRecordData:"criminal_record_data", employerLogoData:"employer_logo_data" };
   const clauses:string[]=[]; const values:unknown[]=[]; let i=1;
   for (const [key,column] of Object.entries(map)) if (b[key] !== undefined) {
     clauses.push(column + " = $" + i++);
@@ -77,7 +77,7 @@ router.delete("/admin/file-search/application/:id", async (req, res): Promise<vo
     const a = rows[0];
     const { rows: jobs } = await pool.query("SELECT title, location, salary FROM jobs WHERE id = $1 LIMIT 1", [a.job_id]);
     const job = jobs[0];
-    const reference = job ? offerReference({firstName:a.first_name,lastName:a.last_name,jobTitle:job.title,location:job.location,salary:job.salary,startDate:a.available_from}) : "";
+    const reference = a.reference_number || (job ? offerReference({firstName:a.first_name,lastName:a.last_name,jobTitle:job.title,location:job.location,salary:job.salary,startDate:a.available_from}) : "");
     res.json({ success:true, application:{...a, reference_number:reference, job_title:job?.title||"", job_salary:job?.salary||"", location:job?.location||"", source_type:"application"} });
   } catch(err) { console.error(err); res.status(500).json({error:"Could not save changes"}); }
 });
