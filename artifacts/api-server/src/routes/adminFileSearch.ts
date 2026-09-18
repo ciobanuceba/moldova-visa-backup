@@ -17,7 +17,7 @@ router.get("/admin/file-search/:referenceNumber", async (req, res): Promise<void
   const { rows } = await pool.query(`SELECT ${selectFields} FROM work_permits WHERE reference_number = $1 LIMIT 1`, [referenceNumber]);
   if (rows.length) { res.json({ application: rows[0], sourceType: "work_permit" }); return; }
   if (referenceNumber.startsWith("MVA-APP-")) {
-    const { rows: apps } = await pool.query(`SELECT a.id, a.reference_number, a.first_name, a.last_name, a.email, a.phone, a.nationality, a.date_of_birth, a.passport_number, a.available_from, a.status, a.admin_notes, a.passport_copy_data, a.photo_data, a.medical_cert_data, a.criminal_record_data, a.created_at, j.title AS job_title, j.salary AS job_salary, j.location AS location, j.id AS job_id FROM applications a LEFT JOIN jobs j ON j.id = a.job_id`);
+    const { rows: apps } = await pool.query(`SELECT a.id, a.reference_number, a.first_name, a.last_name, a.email, a.phone, a.nationality, a.date_of_birth, a.passport_number, a.available_from, a.status, a.admin_notes, a.passport_copy_data, a.photo_data, a.medical_cert_data, a.criminal_record_data, a.employer_logo_data, a.reference_number, a.created_at, j.title AS job_title, j.salary AS job_salary, j.location AS location, j.id AS job_id FROM applications a LEFT JOIN jobs j ON j.id = a.job_id`);
     const app = apps.find((row:any) => row.reference_number === referenceNumber || (row.job_title && row.location && row.job_salary && offerReference({firstName:row.first_name,lastName:row.last_name,jobTitle:row.job_title,location:row.location,salary:row.job_salary,startDate:row.available_from}) === referenceNumber));
     if (app) {
       res.json({ application: {
@@ -27,7 +27,7 @@ router.get("/admin/file-search/:referenceNumber", async (req, res): Promise<void
         job_title: app.job_title, job_salary: app.job_salary, start_date: app.available_from, contract_duration: "",
         status: app.status, admin_notes: app.admin_notes, payment_status: "unpaid", payment_method: "",
         passport_copy_data: app.passport_copy_data, photo_data: app.photo_data, medical_cert_data: app.medical_cert_data,
-        criminal_record_data: app.criminal_record_data, source_type: "application", job_id: app.job_id, created_at: app.created_at
+        criminal_record_data: app.criminal_record_data, employer_logo_data: app.employer_logo_data, source_type: "application", job_id: app.job_id, created_at: app.created_at
       }, sourceType: "application" }); return;
     }
   }
@@ -72,7 +72,7 @@ router.delete("/admin/file-search/application/:id", async (req, res): Promise<vo
   if (!clauses.length) { res.status(400).json({ error: "No fields to update" }); return; }
   values.push(id);
   try {
-    const { rows } = await pool.query("UPDATE applications SET " + clauses.join(", ") + " WHERE id = $" + i + " RETURNING id, first_name, last_name, email, phone, nationality, date_of_birth, passport_number, available_from, status, admin_notes, passport_copy_data, photo_data, medical_cert_data, criminal_record_data, created_at, job_id", values);
+    const { rows } = await pool.query("UPDATE applications SET " + clauses.join(", ") + " WHERE id = $" + i + " RETURNING id, first_name, last_name, email, phone, nationality, date_of_birth, passport_number, available_from, status, admin_notes, passport_copy_data, photo_data, medical_cert_data, criminal_record_data, created_at, job_id, reference_number, employer_logo_data", values);
     if (!rows.length) { res.status(404).json({ error: "Application not found" }); return; }
     const a = rows[0];
     const { rows: jobs } = await pool.query("SELECT title, location, salary FROM jobs WHERE id = $1 LIMIT 1", [a.job_id]);
