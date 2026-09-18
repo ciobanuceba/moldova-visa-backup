@@ -52,7 +52,7 @@ export default function ApplicantDashboard() {
   const { user, logout, isApplicant } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [workPermits, setWorkPermits] = useState<WorkPermit[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);\n  const [openApplication, setOpenApplication] = useState<number | null>(null);\n  const [openPermit, setOpenPermit] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isApplicant) { navigate("/login"); return; }
@@ -166,7 +166,7 @@ export default function ApplicantDashboard() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">{wp.job_title} · {wp.employer_name}, {wp.employer_country}</p>
+                    <p className="text-sm text-muted-foreground">{wp.job_title} · {wp.employer_name}, {wp.employer_country}</p>\n                    {isOpen && <div className="mt-3 border-t pt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm"><p><span className="font-medium">Permit Type:</span> {wp.permit_type || "—"}</p><p><span className="font-medium">Employer:</span> {wp.employer_name || "—"}{wp.employer_country ? ", " + wp.employer_country : ""}</p>{wp.admin_notes && <p className="md:col-span-2 p-3 bg-muted rounded-lg"><span className="font-medium">Admin Update:</span> {wp.admin_notes}</p>}</div>}
                   </div>
                   <div className="flex items-center gap-3">
                     {(wp.payment_status === "unpaid" || wp.payment_status === "rejected") && (
