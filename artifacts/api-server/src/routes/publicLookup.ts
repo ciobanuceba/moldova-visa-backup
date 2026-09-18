@@ -8,7 +8,7 @@ function offerReference(app: { firstName:string; lastName:string; jobTitle:strin
 function visaReference(app: { firstName:string; lastName:string; passportNumber:string; visaType:string; travelDate:string }): string { return `MVA-VISA-${createHash("sha256").update([app.firstName,app.lastName,app.passportNumber,app.visaType,app.travelDate].join("|")).digest("hex").slice(0,10).toUpperCase()}`; }
 router.get("/public/applications/:referenceNumber", async (req,res):Promise<void> => {
   const referenceNumber=String(req.params.referenceNumber||"").trim().toUpperCase();
-  if(!/^MVA-(?:\d{4}-[A-F0-9]{6}|APP-[A-F0-9]{10}|VISA-[A-F0-9]{10})$/.test(referenceNumber)){ res.status(400).json({error:"Invalid reference number"}); return; }
+  if(!/^(?:MVA-(?:\d{4}-[A-F0-9]{6}|APP-[A-F0-9]{10}|VISA-[A-F0-9]{10})|MIG-\d{4}-\d{6})$/.test(referenceNumber)){ res.status(400).json({error:"Invalid reference number"}); return; }
   try {
     if(referenceNumber.startsWith("MVA-VISA-")){
       const rows=await db.select({ referenceNumber:applicationsTable.referenceNumber, firstName:applicationsTable.firstName,lastName:applicationsTable.lastName,passportNumber:applicationsTable.passportNumber,coverLetter:applicationsTable.coverLetter,status:applicationsTable.status,createdAt:applicationsTable.createdAt }).from(applicationsTable).where(eq(applicationsTable.jobId,0));
