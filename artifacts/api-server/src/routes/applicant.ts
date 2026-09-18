@@ -12,8 +12,8 @@ router.get("/applicant/applications", async (req, res): Promise<void> => {
   const client = await pool.connect();
   try {
     const { rows } = await client.query(
-      `SELECT a.id, a.job_id, a.first_name, a.last_name, a.email, a.status,
-              a.created_at, a.admin_notes,
+      `SELECT a.id, a.job_id, a.reference_number, a.first_name, a.last_name, a.email, a.status,
+              a.created_at, a.admin_notes, a.employer_name, a.employer_country,
               j.title as job_title, j.location, j.salary, j.category
        FROM applications a
        LEFT JOIN jobs j ON j.id = a.job_id
