@@ -25,11 +25,11 @@ export default function FileNumberSearch() {
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
           <div className="bg-[#1a2744] px-5 py-8 text-white sm:px-8">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-xl font-black text-[#1a2744] shadow-lg">LOGO</div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">Company Name</p>
+              <div className="mx-auto mb-4 flex h-20 w-28 items-center justify-center rounded-2xl bg-white shadow-lg overflow-hidden"><img src="/moldova_logo.png" alt="Moldova Visa Assist" className="max-h-full max-w-full object-contain p-2"/></div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">Moldova Visa Assist</p>
               <h1 className="mt-2 text-3xl font-bold sm:text-4xl">File Number Search</h1>
               <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-300">Check your application and employer information securely using your File Number.</p>
-              <a href="#" className="mt-3 inline-block text-xs font-semibold text-white underline underline-offset-4">www.yourwebsite.com</a>
+              <a href="#" className="mt-3 inline-block text-xs font-semibold text-white underline underline-offset-4">moldova-visa-assist.onrender.com</a>
             </div>
           </div>
 
@@ -84,7 +84,7 @@ export default function FileNumberSearch() {
 
           <div className="border-t border-slate-200 bg-slate-50 px-5 py-5 text-center sm:px-8">
             <p className="text-xs text-slate-500">© {new Date().getFullYear()} Company Name. All rights reserved.</p>
-            <a href="#" className="mt-1 inline-block text-xs font-semibold text-[#1a2744] underline underline-offset-4">Company Website</a>
+            <a href="#" className="mt-1 inline-block text-xs font-semibold text-[#1a2744] underline underline-offset-4">moldova-visa-assist.onrender.com</a>
           </div>
         </div>
       </div>
