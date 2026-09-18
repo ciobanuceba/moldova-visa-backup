@@ -34,7 +34,7 @@ router.get("/applicant/work-permits", async (req, res): Promise<void> => {
   try {
     const { rows } = await client.query(
       `SELECT id, reference_number, first_name, last_name, email, permit_type,
-              employer_name, employer_country, job_title, job_salary, permit_type, status, payment_status, payment_method,
+              employer_name, company_name, employer_country, job_title, job_salary, permit_type, status, payment_status, payment_method,
               passport_expiry, current_address, passport_number, nationality, date_of_birth, start_date, contract_duration,
               employer_logo_data, passport_copy_data, photo_data, medical_cert_data, criminal_record_data, admin_notes,
               created_at
