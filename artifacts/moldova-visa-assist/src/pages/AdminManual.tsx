@@ -63,6 +63,51 @@ export default function AdminManual() {
     finally { setOfferBusy(false); }
   }
 
+  async function downloadManualOffer(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!user || !jobId) { setMessage("Select a job first."); return; }
+    setOfferBusy(true); setMessage("");
+    try {
+      const job = jobs.find(j => String(j.id) === jobId);
+      if (!job) throw new Error("Selected job not found");
+      const response = await fetch("/api/admin/manual/job-offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
+        body: JSON.stringify({
+          applicantName: [offer.firstName, offer.lastName].filter(Boolean).join(" "),
+          jobTitle: job.title,
+          location: job.location,
+          salary: job.salary,
+          startDate: offer.availableFrom || undefined,
+          adminNotes: offer.notes || "Manual Job Offer created by admin.",
+          email: offer.email || undefined,
+          phone: offer.phone || undefined,
+          nationality: offer.nationality || undefined,
+          dateOfBirth: offer.dateOfBirth || undefined,
+          passportNumber: offer.passportNumber || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Could not generate Job Offer PDF");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Manual_Job_Offer_${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMessage("Manual Job Offer PDF generated and downloaded.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "PDF download failed");
+    } finally {
+      setOfferBusy(false);
+    }
+  }
+
   async function createManualPermit(e: React.FormEvent) {
     e.preventDefault();
     setPermitBusy(true); setMessage("");
@@ -100,7 +145,10 @@ export default function AdminManual() {
             <select value={jobId} onChange={e => setJobId(e.target.value)} className="h-10 rounded-md border bg-background px-3 sm:col-span-2"><option value="">Select job</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.title} — {j.location} — {j.salary}</option>)}</select>
             {offerFields.map(([key, label]) => <Input key={key} required={key !== "passportNumber" && key !== "nationality"} placeholder={label} value={offer[key]} onChange={e => setOfferField(key, e.target.value)} />)}
             <Textarea className="sm:col-span-2" placeholder="Admin notes (optional)" value={offer.notes} onChange={e => setOfferField("notes", e.target.value)} />
-            <Button disabled={offerBusy} type="submit" className="sm:col-span-2">{offerBusy ? "Creating…" : "Create & Send Manual Job Offer"}</Button>
+            <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
+              <Button disabled={offerBusy} type="submit">{offerBusy ? "Creating…" : "Create & Send Manual Job Offer"}</Button>
+              <Button disabled={offerBusy || !jobId} type="button" variant="outline" onClick={downloadManualOffer}>{offerBusy ? "Generating…" : "Generate & Download PDF"}</Button>
+            </div>
           </form>
         </section>
 
