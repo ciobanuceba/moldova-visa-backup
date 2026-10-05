@@ -132,56 +132,138 @@ interface OfferLetterData {
 
 export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buffer> {
   return new Promise((resolve,reject)=>{
-    const doc=new PDFDocument({size:"A4",margin:60});
+    const doc=new PDFDocument({size:"A4",margin:0});
     const chunks:Buffer[]=[];
-    doc.on("data",c=>chunks.push(c)); doc.on("end",()=>resolve(Buffer.concat(chunks))); doc.on("error",reject);
-    doc.registerFont("Regular",path.join(FONTS_DIR,"overpass-regular.ttf")); doc.registerFont("Bold",path.join(FONTS_DIR,"overpass-bold.ttf"));
+    doc.on("data",c=>chunks.push(c));
+    doc.on("end",()=>resolve(Buffer.concat(chunks)));
+    doc.on("error",reject);
+
+    doc.registerFont("Regular",path.join(FONTS_DIR,"overpass-regular.ttf"));
+    doc.registerFont("Bold",path.join(FONTS_DIR,"overpass-bold.ttf"));
+
+    const PW=595.28;
+    const PH=841.89;
+    const ML=54;
+    const MR=541;
+    const CW=MR-ML;
+    const NAVY="#0b3478";
+    const BLUE="#1556a8";
+    const GOLD="#f2bd18";
+    const TEXT="#173052";
+    const MUTED="#5f6f85";
+    const PALE="#f2f7fc";
+
     const today=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
-    doc.font("Regular").fontSize(10).fillColor("#6b7280")
-      .text("Moldova Visa Assist SRL",{align:"right"})
-      .text("Stefan cel Mare si Sfant Boulevard 65",{align:"right"})
-      .text("Chisinau, MD-2001, Republic of Moldova",{align:"right"})
-      .text(`Date: ${today}`,{align:"right"}).moveDown(2);
-    doc.font("Bold").fontSize(22).fillColor("#1a2744").text("JOB OFFER LETTER",{align:"center"}).moveDown(.5);
-    doc.moveTo(60,doc.y).lineTo(535,doc.y).strokeColor("#d4a029").lineWidth(2).stroke().moveDown(1.5);
-    doc.font("Regular").fontSize(11).fillColor("#111827")
-      .text(`Dear ${data.applicantName},`).moveDown(.8)
-      .text(`We are pleased to extend this formal offer of employment to you for the position of ${data.jobTitle} based in ${data.location}.`,{lineGap:4}).moveDown(1);
+
+    // Branded header — job/application data below remains unchanged.
+    doc.rect(0,0,PW,126).fill("#ffffff");
+    try {
+      doc.image(path.join(__dirname,"..","..","moldova-visa-assist","public","moldova_logo.png"),ML,23,{width:315,height:78,fit:"contain"});
+    } catch {
+      doc.font("Bold").fontSize(22).fillColor(NAVY).text("MOLDOVA VISA ASSIST",ML,38);
+      doc.font("Regular").fontSize(8.5).fillColor(GOLD).text("YOUR TRUSTED PARTNER FOR MOLDOVA VISA",ML,66);
+    }
+
+    doc.font("Bold").fontSize(9.5).fillColor(TEXT)
+      .text("Moldova Visa Assist SRL",365,31,{width:176,align:"left"})
+      .font("Regular").fontSize(8.5).fillColor(TEXT)
+      .text("Stefan cel Mare si Sfant Boulevard 65",365,48,{width:176})
+      .text("Chisinau, MD-2001, Republic of Moldova",365,63,{width:176})
+      .font("Bold").fontSize(8.5).text(`Date: ${today}`,365,82,{width:176});
+
+    doc.rect(0,122,PW,4).fill(NAVY);
+    doc.rect(455,122,140,4).fill(GOLD);
+
+    doc.font("Bold").fontSize(25).fillColor(NAVY)
+      .text("JOB OFFER LETTER",ML,153,{width:CW,align:"center"});
+    doc.rect(172,191,251,2).fill(BLUE);
+    doc.rect(275,191,45,2).fill(GOLD);
+
+    let y=224;
+    doc.font("Regular").fontSize(11).fillColor(TEXT)
+      .text(`Dear ${data.applicantName},`,ML,y,{width:CW});
+    y=254;
+    doc.text(
+      `We are pleased to extend this formal offer of employment to you for the position of ${data.jobTitle} based in ${data.location}.`,
+      ML,y,{width:CW,lineGap:4}
+    );
+    y=303;
+
+    // Employment details box.
     const details:[string,string][]=[
-      ["Position",data.jobTitle],["Location",data.location],["Salary Package",data.salary],
+      ["Position",data.jobTitle],
+      ["Location",data.location],
+      ["Salary Package",data.salary],
       ...(data.employerName?[["Employer",data.employerName] as [string,string]]:[]),
       ...(data.startDate?[["Proposed Start Date",data.startDate] as [string,string]]:[]),
     ];
-    doc.font("Bold").fontSize(11).fillColor("#1a2744").text("Employment Details:").moveDown(.5);
-    for(const [label,value] of details){
-      doc.font("Bold").fillColor("#1a2744").text(`${label}: `,{continued:true}).font("Regular").fillColor("#111827").text(value);
-    }
-    doc.moveDown(1);
-    if(data.adminNotes){
-      doc.font("Bold").fillColor("#1a2744").text("Additional Notes:").moveDown(.3)
-        .font("Regular").fillColor("#374151").text(data.adminNotes,{lineGap:4}).moveDown(1);
-    }
-    doc.font("Regular").fillColor("#111827")
-      .text("This offer is contingent upon the successful completion of all visa, work permit, and pre-employment requirements. Moldova Visa Assist will guide you through each step of the process.",{lineGap:4})
-      .moveDown(1.5)
-      .text("Please confirm your acceptance of this offer by replying to this email within 5 business days.")
-      .moveDown(1.5).text("Congratulations and welcome to the team!").moveDown(2);
-    doc.font("Bold").text("Moldova Visa Assist SRL").font("Regular").text("Recruitment & Visa Assistance Team").text("contact@moldova-visa-assist.replit.app");
+    const detailRows=details.length;
+    const rowH=28;
+    const boxH=detailRows*rowH+16;
 
-    // Decorative company seal area for the auto-generated Job Offer.
-    // This is company branding, not a government/immigration seal.
-    const sealX = 445;
-    const sealY = Math.min(doc.y + 28, 740);
+    doc.roundedRect(ML,y,CW,boxH,6).fill(PALE);
+    doc.roundedRect(ML,y-10,170,30,5).fill(BLUE);
+    doc.font("Bold").fontSize(11).fillColor("#ffffff").text("Employment Details:",ML+10,y-3,{width:150});
+
+    details.forEach(([label,value],i)=>{
+      const ry=y+9+i*rowH;
+      if(i>0) doc.moveTo(ML+72,ry-4).lineTo(MR-10,ry-4).lineWidth(.45).strokeColor("#d7e1ec").stroke();
+      doc.font("Bold").fontSize(9.5).fillColor(NAVY).text(`${label}:`,ML+12,ry,{width:145});
+      doc.font("Regular").fontSize(9.5).fillColor(TEXT).text(value,ML+154,ry,{width:CW-170});
+    });
+
+    y += boxH+40;
+
+    if(data.adminNotes){
+      doc.roundedRect(ML,y,CW,54,6).fill(PALE);
+      doc.roundedRect(ML,y-10,160,30,5).fill(BLUE);
+      doc.font("Bold").fontSize(11).fillColor("#ffffff").text("Additional Notes:",ML+10,y-3,{width:140});
+      doc.font("Regular").fontSize(9.5).fillColor(TEXT).text(data.adminNotes,ML+16,y+18,{width:CW-32});
+      y += 82;
+    }
+
+    doc.font("Regular").fontSize(10.5).fillColor(TEXT)
+      .text(
+        "This offer is contingent upon the successful completion of all visa, work permit, and pre-employment requirements. Moldova Visa Assist will guide you through each step of the process.",
+        ML,y,{width:CW,lineGap:4}
+      );
+    y=doc.y+22;
+
+    doc.text(
+      "Please confirm your acceptance of this offer by replying to this email within 5 business days.",
+      ML,y,{width:CW,lineGap:3}
+    );
+    y=doc.y+22;
+
+    doc.text("Congratulations and welcome to the team!",ML,y,{width:CW});
+    y=doc.y+28;
+
+    // Closing/contact block.
+    doc.font("Bold").fontSize(11).fillColor(NAVY).text("Moldova Visa Assist SRL",ML,y);
+    doc.font("Regular").fontSize(9.5).fillColor(TEXT).text("Recruitment & Visa Assistance Team",ML,y+18);
+    doc.text("contact@moldova-visa-assist.replit.app",ML,y+35);
+
+    // Decorative company branding seal only; not a government/immigration seal.
+    const sealX=452;
+    const sealY=Math.min(y+32,715);
     doc.save();
-    doc.circle(sealX, sealY, 42).lineWidth(1.4).strokeColor("#1a2744").stroke();
-    doc.circle(sealX, sealY, 35).lineWidth(0.8).strokeColor("#d4a029").stroke();
-    doc.font("Bold").fontSize(7).fillColor("#1a2744")
-      .text("MOLDOVA VISA ASSIST SRL", sealX - 30, sealY - 20, { width: 60, align: "center" });
-    doc.font("Bold").fontSize(9).text("MVA", sealX - 15, sealY - 6, { width: 30, align: "center" });
-    doc.font("Regular").fontSize(5.8).fillColor("#374151")
-      .text("COMPANY SEAL", sealX - 28, sealY + 7, { width: 56, align: "center" })
-      .text("COMPANY USE", sealX - 28, sealY + 16, { width: 56, align: "center" });
+    doc.circle(sealX,sealY,43).lineWidth(1.6).strokeColor(BLUE).stroke();
+    doc.circle(sealX,sealY,36).lineWidth(1).strokeColor(GOLD).stroke();
+    doc.font("Bold").fontSize(6.8).fillColor(NAVY)
+      .text("MOLDOVA VISA ASSIST SRL",sealX-31,sealY-22,{width:62,align:"center"});
+    doc.font("Bold").fontSize(16).text("MVA",sealX-25,sealY-7,{width:50,align:"center"});
+    doc.font("Regular").fontSize(6).fillColor(MUTED)
+      .text("COMPANY BRAND",sealX-30,sealY+12,{width:60,align:"center"});
     doc.restore();
+
+    // Branded footer.
+    const fy=PH-70;
+    doc.rect(0,fy,PW,70).fill(NAVY);
+    doc.moveTo(0,fy+14).lineTo(155,fy+2).lineTo(300,fy+15).lineTo(455,fy+3).lineTo(PW,fy+14)
+      .lineTo(PW,fy).lineTo(0,fy).closePath().fill(GOLD);
+    doc.font("Regular").fontSize(8.5).fillColor("#ffffff")
+      .text("Your Trusted Partner for Moldova Visa",54,fy+36)
+      .text("www.moldova-visa-assist.replit.app",365,fy+36,{width:176,align:"right"});
 
     doc.end();
   });
