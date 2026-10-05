@@ -199,14 +199,14 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     ];
     const detailRows=details.length;
     const rowH=28;
-    const boxH=detailRows*rowH+16;
+    const boxH=detailRows*rowH+34;
 
     doc.roundedRect(ML,y,CW,boxH,7).fill(PALE);
     doc.roundedRect(ML,y-11,170,30,6).fill(BLUE);
     doc.font("Bold").fontSize(11).fillColor("#ffffff").text("Employment Details:",ML+10,y-3,{width:150});
 
     details.forEach(([label,value],i)=>{
-      const ry=y+9+i*rowH;
+      const ry=y+27+i*rowH;
       if(i>0) doc.moveTo(ML+72,ry-4).lineTo(MR-10,ry-4).lineWidth(.45).strokeColor("#d7e1ec").stroke();
       doc.font("Bold").fontSize(9.5).fillColor(NAVY).text(`${label}:`,ML+12,ry,{width:145});
       doc.font("Regular").fontSize(9.5).fillColor(TEXT).text(value,ML+154,ry,{width:CW-170});
@@ -214,7 +214,7 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
 
     y += boxH+40;
 
-    if(data.adminNotes){
+    if(data.adminNotes && data.adminNotes.trim() !== "Manual Job Offer created by admin."){
       doc.roundedRect(ML,y,CW,54,6).fill(PALE);
       doc.roundedRect(ML,y-11,160,30,6).fill(BLUE);
       doc.font("Bold").fontSize(11).fillColor("#ffffff").text("Additional Notes:",ML+10,y-3,{width:140});
