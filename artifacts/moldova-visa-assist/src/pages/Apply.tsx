@@ -199,7 +199,18 @@ export default function Apply() {
               <h1 className="text-3xl md:text-4xl font-serif font-bold text-white mb-1">
                 {isGeneralApplication ? "Apply Now" : (job?.title ?? "Apply for Position")}
               </h1>
-              {job?.location && <p className="text-primary-foreground/70">Job Location: {job.location} · {job.salary}</p>}
+              {job && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+                  <div>
+                    <label className="text-xs font-medium text-primary-foreground/70">Job Location</label>
+                    <Input value={job.location ?? ""} readOnly className="mt-1 h-9 bg-white/10 border-white/20 text-white placeholder:text-white/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-primary-foreground/70">Salary Package</label>
+                    <Input value={job.salary ?? ""} readOnly className="mt-1 h-9 bg-white/10 border-white/20 text-white placeholder:text-white/50" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
