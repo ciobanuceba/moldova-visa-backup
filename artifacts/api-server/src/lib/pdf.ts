@@ -167,6 +167,22 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
       .text("Please confirm your acceptance of this offer by replying to this email within 5 business days.")
       .moveDown(1.5).text("Congratulations and welcome to the team!").moveDown(2);
     doc.font("Bold").text("Moldova Visa Assist SRL").font("Regular").text("Recruitment & Visa Assistance Team").text("contact@moldova-visa-assist.replit.app");
+
+    // Decorative company seal area for the auto-generated Job Offer.
+    // This is company branding, not a government/immigration seal.
+    const sealX = 445;
+    const sealY = Math.min(doc.y + 28, 740);
+    doc.save();
+    doc.circle(sealX, sealY, 42).lineWidth(1.4).strokeColor("#1a2744").stroke();
+    doc.circle(sealX, sealY, 35).lineWidth(0.8).strokeColor("#d4a029").stroke();
+    doc.font("Bold").fontSize(7).fillColor("#1a2744")
+      .text("MOLDOVA VISA ASSIST SRL", sealX - 30, sealY - 20, { width: 60, align: "center" });
+    doc.font("Bold").fontSize(9).text("MVA", sealX - 15, sealY - 6, { width: 30, align: "center" });
+    doc.font("Regular").fontSize(5.8).fillColor("#374151")
+      .text("COMPANY SEAL", sealX - 28, sealY + 7, { width: 56, align: "center" })
+      .text("COMPANY USE", sealX - 28, sealY + 16, { width: 56, align: "center" });
+    doc.restore();
+
     doc.end();
   });
 }
