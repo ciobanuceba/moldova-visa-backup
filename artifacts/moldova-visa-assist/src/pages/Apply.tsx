@@ -251,15 +251,6 @@ export default function Apply() {
                   </div>
                 </div>
 
-                {!isGeneralApplication && job?.location && (
-                  <div className="mb-4">
-                    <FormLabel>Job Location</FormLabel>
-                    <div className="mt-2 rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-foreground">
-                      {job.location}
-                    </div>
-                  </div>
-                )}
-
                 <div className="space-y-4">
                   <FormField control={form.control} name="yearsExperience" render={({ field }) => (
                     <FormItem>
