@@ -251,13 +251,16 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     doc.save();
     doc.circle(sealX,sealY,43).lineWidth(1.6).strokeColor(BLUE).stroke();
     doc.circle(sealX,sealY,36).lineWidth(1).strokeColor(GOLD).stroke();
-    doc.font("Bold").fontSize(6.8).fillColor(NAVY)
-      .text("MOLDOVA VISA ASSIST SRL",sealX-31,sealY-22,{width:62,align:"center"});
-    doc.font("Bold").fontSize(16).text("MVA",sealX-25,sealY-7,{width:50,align:"center"});
-    doc.font("Bold").fontSize(5.2).fillColor(BLUE)
+    doc.font("Bold").fontSize(5.9).fillColor(NAVY)
+      .text("MOLDOVA VISA ASSIST",sealX-34,sealY-27,{width:68,align:"center"});
+    doc.font("Bold").fontSize(5.8).fillColor(NAVY)
+      .text("SRL",sealX-20,sealY-19,{width:40,align:"center"});
+    doc.font("Bold").fontSize(15).fillColor(NAVY)
+      .text("MVA",sealX-25,sealY-8,{width:50,align:"center"});
+    doc.font("Bold").fontSize(4.7).fillColor(BLUE)
       .text("TRUST • SERVICE • SUPPORT",sealX-34,sealY+11,{width:68,align:"center"});
-    doc.font("Regular").fontSize(5.2).fillColor(MUTED)
-      .text("COMPANY BRANDING",sealX-34,sealY+21,{width:68,align:"center"});
+    doc.font("Regular").fontSize(4.7).fillColor(MUTED)
+      .text("COMPANY BRANDING",sealX-34,sealY+22,{width:68,align:"center"});
     doc.restore();
 
     // Branded footer.
