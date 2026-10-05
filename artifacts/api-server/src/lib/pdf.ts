@@ -251,6 +251,12 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     doc.save();
     doc.circle(sealX,sealY,43).lineWidth(1.6).strokeColor(BLUE).stroke();
     doc.circle(sealX,sealY,36).lineWidth(1).strokeColor(GOLD).stroke();
+    doc.font("Bold").fontSize(5.7).fillColor(NAVY)
+      .text("MOLDOVA VISA ASSIST SRL",sealX-30,sealY-22,{width:60,align:"center"})
+      .font("Bold").fontSize(15).fillColor(NAVY)
+      .text("MVA",sealX-22,sealY-8,{width:44,align:"center"})
+      .font("Bold").fontSize(5.2).fillColor(BLUE)
+      .text("TRUST • SERVICE • SUPPORT",sealX-31,sealY+12,{width:62,align:"center"});
     doc.restore();
 
     // Branded footer.
