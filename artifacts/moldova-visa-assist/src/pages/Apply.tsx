@@ -22,6 +22,7 @@ import { useI18n } from "@/lib/i18n";
 
 const LANGUAGES = ["English", "Romanian", "Russian", "Bengali", "German", "French", "Italian", "Spanish", "Dutch", "Polish", "Czech", "Portuguese"];
 const EXPERIENCE_LEVELS = ["0–1 years", "1–3 years", "3–5 years", "5–10 years", "10+ years"];
+const EUROPE_COUNTRIES = ["Albania","Andorra","Austria","Belarus","Belgium","Bosnia and Herzegovina","Bulgaria","Croatia","Cyprus","Czech Republic","Denmark","Estonia","Finland","France","Germany","Greece","Hungary","Iceland","Ireland","Italy","Kosovo","Latvia","Liechtenstein","Lithuania","Luxembourg","Malta","Moldova","Monaco","Montenegro","Netherlands","North Macedonia","Norway","Poland","Portugal","Romania","Russia","San Marino","Serbia","Slovakia","Slovenia","Spain","Sweden","Switzerland","Ukraine","United Kingdom","Vatican City"];
 
 const formSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters"),
@@ -203,7 +204,7 @@ export default function Apply() {
                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
                   <div>
                     <label className="text-xs font-medium text-primary-foreground/70">Job Location</label>
-                    <Input value={job.location ?? ""} readOnly className="mt-1 h-9 bg-white/10 border-white/20 text-white placeholder:text-white/50" />
+                    <Select defaultValue={job.location ?? ""}><SelectTrigger className="mt-1 h-9 bg-white/10 border-white/20 text-white"><SelectValue placeholder="Select country" /></SelectTrigger><SelectContent>{EUROPE_COUNTRIES.map(country => <SelectItem key={country} value={country}>{country}</SelectItem>)}</SelectContent></Select>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-primary-foreground/70">Salary Package</label>
