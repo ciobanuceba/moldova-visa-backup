@@ -201,8 +201,8 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     const rowH=28;
     const boxH=detailRows*rowH+16;
 
-    doc.roundedRect(ML,y,CW,boxH,6).fill(PALE);
-    doc.roundedRect(ML,y-10,170,30,5).fill(BLUE);
+    doc.roundedRect(ML,y,CW,boxH,7).fill(PALE);
+    doc.roundedRect(ML,y-11,170,30,6).fill(BLUE);
     doc.font("Bold").fontSize(11).fillColor("#ffffff").text("Employment Details:",ML+10,y-3,{width:150});
 
     details.forEach(([label,value],i)=>{
@@ -216,7 +216,7 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
 
     if(data.adminNotes){
       doc.roundedRect(ML,y,CW,54,6).fill(PALE);
-      doc.roundedRect(ML,y-10,160,30,5).fill(BLUE);
+      doc.roundedRect(ML,y-11,160,30,6).fill(BLUE);
       doc.font("Bold").fontSize(11).fillColor("#ffffff").text("Additional Notes:",ML+10,y-3,{width:140});
       doc.font("Regular").fontSize(9.5).fillColor(TEXT).text(data.adminNotes,ML+16,y+18,{width:CW-32});
       y += 82;
@@ -241,7 +241,9 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     // Closing/contact block.
     doc.font("Bold").fontSize(11).fillColor(NAVY).text("Moldova Visa Assist SRL",ML,y);
     doc.font("Regular").fontSize(9.5).fillColor(TEXT).text("Recruitment & Visa Assistance Team",ML,y+18);
-    doc.text("contact@moldova-visa-assist.replit.app",ML,y+35);
+    doc.text("ciobanuceban@gmail.com",ML,y+35);
+    doc.font("Regular").fontSize(8.8).fillColor(BLUE)
+      .text("https://moldova-visa-assist.onrender.com/",ML,y+51);
 
     // Decorative company branding seal only; not a government/immigration seal.
     const sealX=452;
@@ -252,8 +254,10 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     doc.font("Bold").fontSize(6.8).fillColor(NAVY)
       .text("MOLDOVA VISA ASSIST SRL",sealX-31,sealY-22,{width:62,align:"center"});
     doc.font("Bold").fontSize(16).text("MVA",sealX-25,sealY-7,{width:50,align:"center"});
-    doc.font("Regular").fontSize(6).fillColor(MUTED)
-      .text("COMPANY BRAND",sealX-30,sealY+12,{width:60,align:"center"});
+    doc.font("Bold").fontSize(5.2).fillColor(BLUE)
+      .text("TRUST • SERVICE • SUPPORT",sealX-34,sealY+11,{width:68,align:"center"});
+    doc.font("Regular").fontSize(5.2).fillColor(MUTED)
+      .text("COMPANY BRANDING",sealX-34,sealY+21,{width:68,align:"center"});
     doc.restore();
 
     // Branded footer.
@@ -263,7 +267,7 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
       .lineTo(PW,fy).lineTo(0,fy).closePath().fill(GOLD);
     doc.font("Regular").fontSize(8.5).fillColor("#ffffff")
       .text("Your Trusted Partner for Moldova Visa",54,fy+36)
-      .text("www.moldova-visa-assist.replit.app",365,fy+36,{width:176,align:"right"});
+      .text("moldova-visa-assist.onrender.com",365,fy+36,{width:176,align:"right"});
 
     doc.end();
   });
