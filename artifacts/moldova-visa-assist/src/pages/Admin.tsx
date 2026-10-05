@@ -803,16 +803,56 @@ export default function Admin() {
                       <Select value={field.value} onValueChange={field.onChange}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger></FormControl>
                         <SelectContent>
-                          <SelectItem value="Moldova">Moldova</SelectItem>
-                          <SelectItem value="Romania">Romania</SelectItem>
-                          <SelectItem value="Poland">Poland</SelectItem>
-                          <SelectItem value="Germany">Germany</SelectItem>
-                          <SelectItem value="Hungary">Hungary</SelectItem>
-                          <SelectItem value="Lithuania">Lithuania</SelectItem>
-                          <SelectItem value="Latvia">Latvia</SelectItem>
+                          <SelectItem value="Albania">Albania</SelectItem>
+                          <SelectItem value="Andorra">Andorra</SelectItem>
+                          <SelectItem value="Armenia">Armenia</SelectItem>
+                          <SelectItem value="Austria">Austria</SelectItem>
+                          <SelectItem value="Azerbaijan">Azerbaijan</SelectItem>
+                          <SelectItem value="Belarus">Belarus</SelectItem>
+                          <SelectItem value="Belgium">Belgium</SelectItem>
+                          <SelectItem value="Bosnia and Herzegovina">Bosnia and Herzegovina</SelectItem>
+                          <SelectItem value="Bulgaria">Bulgaria</SelectItem>
+                          <SelectItem value="Croatia">Croatia</SelectItem>
+                          <SelectItem value="Cyprus">Cyprus</SelectItem>
                           <SelectItem value="Czech Republic">Czech Republic</SelectItem>
-                          <SelectItem value="Slovakia">Slovakia</SelectItem>
+                          <SelectItem value="Denmark">Denmark</SelectItem>
+                          <SelectItem value="Estonia">Estonia</SelectItem>
+                          <SelectItem value="Finland">Finland</SelectItem>
+                          <SelectItem value="France">France</SelectItem>
+                          <SelectItem value="Georgia">Georgia</SelectItem>
+                          <SelectItem value="Germany">Germany</SelectItem>
+                          <SelectItem value="Greece">Greece</SelectItem>
+                          <SelectItem value="Hungary">Hungary</SelectItem>
+                          <SelectItem value="Iceland">Iceland</SelectItem>
+                          <SelectItem value="Ireland">Ireland</SelectItem>
                           <SelectItem value="Italy">Italy</SelectItem>
+                          <SelectItem value="Kosovo">Kosovo</SelectItem>
+                          <SelectItem value="Latvia">Latvia</SelectItem>
+                          <SelectItem value="Liechtenstein">Liechtenstein</SelectItem>
+                          <SelectItem value="Lithuania">Lithuania</SelectItem>
+                          <SelectItem value="Luxembourg">Luxembourg</SelectItem>
+                          <SelectItem value="Malta">Malta</SelectItem>
+                          <SelectItem value="Moldova">Moldova</SelectItem>
+                          <SelectItem value="Monaco">Monaco</SelectItem>
+                          <SelectItem value="Montenegro">Montenegro</SelectItem>
+                          <SelectItem value="Netherlands">Netherlands</SelectItem>
+                          <SelectItem value="North Macedonia">North Macedonia</SelectItem>
+                          <SelectItem value="Norway">Norway</SelectItem>
+                          <SelectItem value="Poland">Poland</SelectItem>
+                          <SelectItem value="Portugal">Portugal</SelectItem>
+                          <SelectItem value="Romania">Romania</SelectItem>
+                          <SelectItem value="Russia">Russia</SelectItem>
+                          <SelectItem value="San Marino">San Marino</SelectItem>
+                          <SelectItem value="Serbia">Serbia</SelectItem>
+                          <SelectItem value="Slovakia">Slovakia</SelectItem>
+                          <SelectItem value="Slovenia">Slovenia</SelectItem>
+                          <SelectItem value="Spain">Spain</SelectItem>
+                          <SelectItem value="Sweden">Sweden</SelectItem>
+                          <SelectItem value="Switzerland">Switzerland</SelectItem>
+                          <SelectItem value="Turkey">Turkey</SelectItem>
+                          <SelectItem value="Ukraine">Ukraine</SelectItem>
+                          <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                          <SelectItem value="Vatican City">Vatican City</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
