@@ -158,7 +158,7 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     // Branded header — job/application data below remains unchanged.
     doc.rect(0,0,PW,126).fill("#ffffff");
     try {
-      doc.image(path.join(__dirname,"..","..","moldova-visa-assist","public","moldova_logo.png"),ML,23,{width:315,height:78,fit:"contain"});
+      doc.image(path.join(__dirname,"..","..","moldova-visa-assist","public","moldova_logo.png"),ML,23,{fit:[315,78]});
     } catch {
       doc.font("Bold").fontSize(22).fillColor(NAVY).text("MOLDOVA VISA ASSIST",ML,38);
       doc.font("Regular").fontSize(8.5).fillColor(GOLD).text("YOUR TRUSTED PARTNER FOR MOLDOVA VISA",ML,66);
