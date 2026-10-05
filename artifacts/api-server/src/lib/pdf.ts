@@ -192,7 +192,7 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     // Employment details box.
     const details:[string,string][]=[
       ["Position",data.jobTitle],
-      ["Location",data.location],
+      ["Job Location",data.location],
       ["Salary Package",data.salary],
       ...(data.employerName?[["Employer",data.employerName] as [string,string]]:[]),
       ...(data.startDate?[["Proposed Start Date",data.startDate] as [string,string]]:[]),
