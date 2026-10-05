@@ -259,8 +259,7 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
       .text("MVA",sealX-25,sealY-8,{width:50,align:"center"});
     doc.font("Bold").fontSize(4.7).fillColor(BLUE)
       .text("TRUST • SERVICE • SUPPORT",sealX-34,sealY+11,{width:68,align:"center"});
-    doc.font("Regular").fontSize(4.7).fillColor(MUTED)
-      .text("COMPANY BRANDING",sealX-34,sealY+22,{width:68,align:"center"});
+
     doc.restore();
 
     // Branded footer.
