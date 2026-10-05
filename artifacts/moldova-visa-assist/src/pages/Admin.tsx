@@ -297,8 +297,7 @@ export default function Admin() {
 
   async function handleWpAction(id: number, action: "approve" | "reject") {
     if (!user) return;
-    const res = await fetch(`/api/admin/work-permits/${id}/${action}`, {
-      method: "PATCH",
+    const res = await fetch(`/api/admin/work-permits/${id}/${action}`, {      method: "PATCH",
       headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
       body: JSON.stringify({}),
     });
@@ -597,8 +596,7 @@ export default function Admin() {
                         <div className="text-xs text-muted-foreground">{wp.employer_name}, {wp.employer_country}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={wp.payment_status === "paid" ? "default" : "outline"} className="text-xs capitalize">
-                          {wp.payment_status}
+                        <Badge variant={wp.payment_status === "paid" ? "default" : "outline"} className="text-xs capitalize">                          {wp.payment_status}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -800,7 +798,25 @@ export default function Admin() {
                     <FormItem><FormLabel>Category</FormLabel><FormControl><Input placeholder="e.g. Construction" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <FormField control={form.control} name="location" render={({ field }) => (
-                    <FormItem><FormLabel>Location</FormLabel><FormControl><Input placeholder="e.g. Berlin, Germany" {...field} /></FormControl><FormMessage /></FormItem>
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="Moldova">Moldova</SelectItem>
+                          <SelectItem value="Romania">Romania</SelectItem>
+                          <SelectItem value="Poland">Poland</SelectItem>
+                          <SelectItem value="Germany">Germany</SelectItem>
+                          <SelectItem value="Hungary">Hungary</SelectItem>
+                          <SelectItem value="Lithuania">Lithuania</SelectItem>
+                          <SelectItem value="Latvia">Latvia</SelectItem>
+                          <SelectItem value="Czech Republic">Czech Republic</SelectItem>
+                          <SelectItem value="Slovakia">Slovakia</SelectItem>
+                          <SelectItem value="Italy">Italy</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
                   )} />
                   <FormField control={form.control} name="type" render={({ field }) => (
                     <FormItem>
