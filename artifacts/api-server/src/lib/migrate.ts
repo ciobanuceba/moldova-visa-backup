@@ -10,6 +10,7 @@ export async function runMigrations(): Promise<void> {
 
     await client.query(`ALTER TABLE applications
       ADD COLUMN IF NOT EXISTS reference_number TEXT,
+      ADD COLUMN IF NOT EXISTS location TEXT,
       ADD COLUMN IF NOT EXISTS passport_copy_data TEXT,
       ADD COLUMN IF NOT EXISTS photo_data TEXT,
       ADD COLUMN IF NOT EXISTS medical_cert_data TEXT,
