@@ -209,7 +209,7 @@ router.patch("/admin/applications/:id/approve", async (req, res): Promise<void> 
       pdfBuffer = await generateOfferLetterPdf({
         applicantName: `${app.first_name} ${app.last_name}`,
         jobTitle: app.job_title ?? "Position",
-        location: app.job_location ?? app.selected_job_location ?? app.location ?? "Europe",
+        location: app.location ?? app.job_location ?? app.selected_job_location ?? "Europe",
         salary: app.job_salary ?? app.selected_job_salary ?? app.salary ?? "As discussed",
         startDate: app.available_from ?? undefined,
 
@@ -356,7 +356,7 @@ router.get("/admin/applications/:id/offer-letter", async (req, res): Promise<voi
     const pdfBuffer = await generateOfferLetterPdf({
       applicantName: `${app.first_name} ${app.last_name}`,
       jobTitle: app.job_title ?? "Position",
-      location: app.job_location ?? app.selected_job_location ?? app.location ?? "Europe",
+      location: app.location ?? app.job_location ?? app.selected_job_location ?? "Europe",
       salary: app.job_salary ?? app.selected_job_salary ?? app.salary ?? "As discussed",
       startDate: app.available_from ?? undefined,
 
@@ -425,6 +425,7 @@ router.patch("/admin/applications/:id/edit", async (req, res): Promise<void> => 
 
   const map: Record<string, string> = {
     referenceNumber: "reference_number",
+    location: "location",
     firstName: "first_name",
     lastName: "last_name",
     email: "email",
