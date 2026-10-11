@@ -194,6 +194,7 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
       ["Position",data.jobTitle],
       ["Job Location",data.location],
       ["Salary Package",data.salary],
+      ...(data.passportNumber?.trim()?[["Passport Number",data.passportNumber.trim()] as [string,string]]:[]),
       ...(data.employerName?[["Employer",data.employerName] as [string,string]]:[]),
       ...(data.startDate?[["Proposed Start Date",data.startDate] as [string,string]]:[]),
     ];
