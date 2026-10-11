@@ -187,7 +187,9 @@ router.patch("/admin/applications/:id/approve", async (req, res): Promise<void> 
 
   try {
     const { rows } = await client.query(
-      `SELECT a.*, j.title as job_title, j.location, j.salary
+      `SELECT a.*, j.title as job_title,
+              j.location AS selected_job_location,
+              j.salary AS selected_job_salary
        FROM applications a
        LEFT JOIN jobs j ON j.id = a.job_id
        WHERE a.id = $1`,
@@ -207,8 +209,8 @@ router.patch("/admin/applications/:id/approve", async (req, res): Promise<void> 
       pdfBuffer = await generateOfferLetterPdf({
         applicantName: `${app.first_name} ${app.last_name}`,
         jobTitle: app.job_title ?? "Position",
-        location: app.location ?? "Europe",
-        salary: app.salary ?? "As discussed",
+        location: app.job_location ?? app.selected_job_location ?? app.location ?? "Europe",
+        salary: app.job_salary ?? app.selected_job_salary ?? app.salary ?? "As discussed",
         startDate: app.available_from ?? undefined,
 
         // FIX 1: Pass the applicant's passport number to the PDF generator.
@@ -335,7 +337,9 @@ router.get("/admin/applications/:id/offer-letter", async (req, res): Promise<voi
 
   try {
     const { rows } = await client.query(
-      `SELECT a.*, j.title as job_title, j.location, j.salary
+      `SELECT a.*, j.title as job_title,
+              j.location AS selected_job_location,
+              j.salary AS selected_job_salary
        FROM applications a
        LEFT JOIN jobs j ON j.id = a.job_id
        WHERE a.id = $1`,
@@ -352,8 +356,8 @@ router.get("/admin/applications/:id/offer-letter", async (req, res): Promise<voi
     const pdfBuffer = await generateOfferLetterPdf({
       applicantName: `${app.first_name} ${app.last_name}`,
       jobTitle: app.job_title ?? "Position",
-      location: app.location ?? "Europe",
-      salary: app.salary ?? "As discussed",
+      location: app.job_location ?? app.selected_job_location ?? app.location ?? "Europe",
+      salary: app.job_salary ?? app.selected_job_salary ?? app.salary ?? "As discussed",
       startDate: app.available_from ?? undefined,
 
       // FIX 2: Pass the applicant's passport number to the PDF generator.
