@@ -44,12 +44,13 @@ router.post("/applications", async (req,res):Promise<void> => {
   if(!isValidEmail(email)){res.status(400).json({error:"Invalid email address"});return;}
 
   const nationality=sanitizeString(body.nationality), dateOfBirth=sanitizeString(body.dateOfBirth), passportNumber=sanitizeString(body.passportNumber);
+  const applicationLocation=sanitizeString(body.location);
   const yearsExperience=sanitizeString(body.yearsExperience), skills=sanitizeString(body.skills), languages=sanitizeString(body.languages);
   const availableFrom=sanitizeString(body.availableFrom), resumeUrl=sanitizeString(body.resumeUrl), coverLetter=sanitizeString(body.coverLetter), experience=sanitizeString(body.experience);
 
   let app;
   try {
-    const [insertedApp]=await db.insert(applicationsTable).values({jobId,firstName,lastName,email,phone,nationality,dateOfBirth,passportNumber,yearsExperience,skills,languages,availableFrom,resumeUrl,coverLetter,experience,status:"pending"}).returning();
+    const [insertedApp]=await db.insert(applicationsTable).values({jobId,location:applicationLocation,firstName,lastName,email,phone,nationality,dateOfBirth,passportNumber,yearsExperience,skills,languages,availableFrom,resumeUrl,coverLetter,experience,status:"pending"}).returning();
     app=insertedApp;
     logger.info({appId:app.id},"Application successfully saved to database");
   } catch(dbError) {
