@@ -4,13 +4,13 @@ import { pool } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "../middleware/requireAdmin";
 import {
-sendEmail,
-applicationApprovedEmail,
-applicationRejectedEmail,
-workPermitApprovedEmail,
-workPermitRejectedEmail,
-workPermitPaymentApprovedEmail,
-workPermitPaymentRejectedEmail,
+  sendEmail,
+  applicationApprovedEmail,
+  applicationRejectedEmail,
+  workPermitApprovedEmail,
+  workPermitRejectedEmail,
+  workPermitPaymentApprovedEmail,
+  workPermitPaymentRejectedEmail,
 } from "../lib/email";
 import { generateOfferLetterPdf, generateWorkPermitDecisionPdf } from "../lib/pdf";
 import { logger } from "../lib/logger";
@@ -22,551 +22,905 @@ router.use("/admin", requireAdmin);
 // ── Admin statistics ──────────────────────────────────────────────────────────
 
 router.get("/admin/stats", async (_req, res): Promise<void> => {
-const client = await pool.connect();
-try {
-const { rows: appStats } = await client.query(`
-SELECT
-COUNT(*)::int AS total,
-COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
-COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
-COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected
-FROM applications
-`);
+  const client = await pool.connect();
+  try {
+    const { rows: appStats } = await client.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+        COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
+        COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected
+      FROM applications
+    `);
 
-const { rows: wpStats } = await client.query(`
-SELECT
-COUNT(*)::int AS total,
-COUNT(*) FILTER (WHERE status = 'submitted')::int AS submitted,
-COUNT(*) FILTER (WHERE status = 'payment_confirmed')::int AS payment_confirmed,
-COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
-COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected,
-COUNT(*) FILTER (WHERE payment_status = 'paid')::int AS paid_count
-FROM work_permits
-`);
+    const { rows: wpStats } = await client.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'submitted')::int AS submitted,
+        COUNT(*) FILTER (WHERE status = 'payment_confirmed')::int AS payment_confirmed,
+        COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
+        COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected,
+        COUNT(*) FILTER (WHERE payment_status = 'paid')::int AS paid_count
+      FROM work_permits
+    `);
 
-const { rows: appsByDay } = await client.query(`
-SELECT
-TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
-created_at::date AS date,
-COUNT(*)::int AS count
-FROM applications
-WHERE created_at >= NOW() - INTERVAL '30 days'
-GROUP BY date, day
-ORDER BY date ASC
-`);
+    const { rows: appsByDay } = await client.query(`
+      SELECT
+        TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
+        created_at::date AS date,
+        COUNT(*)::int AS count
+      FROM applications
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY date, day
+      ORDER BY date ASC
+    `);
 
-const { rows: byCategory } = await client.query(`
-SELECT
-COALESCE(j.category, 'General') AS category,
-COUNT(*)::int AS count
-FROM applications a
-LEFT JOIN jobs j ON j.id = a.job_id
-GROUP BY category
-ORDER BY count DESC
-LIMIT 8
-`);
+    const { rows: byCategory } = await client.query(`
+      SELECT
+        COALESCE(j.category, 'General') AS category,
+        COUNT(*)::int AS count
+      FROM applications a
+      LEFT JOIN jobs j ON j.id = a.job_id
+      GROUP BY category
+      ORDER BY count DESC
+      LIMIT 8
+    `);
 
-const { rows: byCountry } = await client.query(`
-SELECT employer_country AS country, COUNT(*)::int AS count
-FROM work_permits
-GROUP BY employer_country
-ORDER BY count DESC
-LIMIT 6
-`);
+    const { rows: byCountry } = await client.query(`
+      SELECT employer_country AS country, COUNT(*)::int AS count
+      FROM work_permits
+      GROUP BY employer_country
+      ORDER BY count DESC
+      LIMIT 6
+    `);
 
-const { rows: recentActivity } = await client.query(`
-(
-SELECT 'application' AS type, first_name || ' ' || last_name AS name,
-status, created_at
-FROM applications
-ORDER BY created_at DESC LIMIT 5
-)
-UNION ALL
-(
-SELECT 'work_permit' AS type, first_name || ' ' || last_name AS name,
-status, created_at
-FROM work_permits
-ORDER BY created_at DESC LIMIT 5
-)
-ORDER BY created_at DESC
-LIMIT 10
-`);
+    const { rows: recentActivity } = await client.query(`
+      (
+        SELECT 'application' AS type, first_name || ' ' || last_name AS name,
+        status, created_at
+        FROM applications
+        ORDER BY created_at DESC LIMIT 5
+      )
+      UNION ALL
+      (
+        SELECT 'work_permit' AS type, first_name || ' ' || last_name AS name,
+        status, created_at
+        FROM work_permits
+        ORDER BY created_at DESC LIMIT 5
+      )
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
 
-const { rows: registrations } = await client.query(`
-SELECT
-TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
-created_at::date AS date,
-COUNT(*)::int AS count
-FROM applicant_users
-WHERE created_at >= NOW() - INTERVAL '30 days'
-GROUP BY date, day
-ORDER BY date ASC
-`);
+    const { rows: registrations } = await client.query(`
+      SELECT
+        TO_CHAR(created_at AT TIME ZONE 'UTC', 'Mon DD') AS day,
+        created_at::date AS date,
+        COUNT(*)::int AS count
+      FROM applicant_users
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY date, day
+      ORDER BY date ASC
+    `);
 
-const apps = appStats[0];
-const wps = wpStats[0];
-const approvalRate = apps.total > 0
-? Math.round((apps.approved / apps.total) * 100)
-: 0;
-const revenue = wps.paid_count * 120;
+    const apps = appStats[0];
+    const wps = wpStats[0];
 
-res.json({
-applications: {
-total: apps.total,
-pending: apps.pending,
-approved: apps.approved,
-rejected: apps.rejected,
-approvalRate,
-},
-workPermits: {
-total: wps.total,
-submitted: wps.submitted,
-paymentConfirmed: wps.payment_confirmed,
-approved: wps.approved,
-rejected: wps.rejected,
-paidCount: wps.paid_count,
-revenue,
-},
-charts: {
-applicationsByDay: appsByDay.map(r => ({ day: r.day, applications: r.count })),
-byCategory: byCategory.map(r => ({ category: r.category, count: r.count })),
-byCountry: byCountry.map(r => ({ country: r.country, count: r.count })),
-registrationsByDay: registrations.map(r => ({ day: r.day, signups: r.count })),
-},
-recentActivity: recentActivity.map(r => ({
-type: r.type,
-name: r.name,
-status: r.status,
-createdAt: r.created_at,
-})),
-});
-} finally {
-client.release();
-}
+    const approvalRate = apps.total > 0
+      ? Math.round((apps.approved / apps.total) * 100)
+      : 0;
+
+    const revenue = wps.paid_count * 120;
+
+    res.json({
+      applications: {
+        total: apps.total,
+        pending: apps.pending,
+        approved: apps.approved,
+        rejected: apps.rejected,
+        approvalRate,
+      },
+      workPermits: {
+        total: wps.total,
+        submitted: wps.submitted,
+        paymentConfirmed: wps.payment_confirmed,
+        approved: wps.approved,
+        rejected: wps.rejected,
+        paidCount: wps.paid_count,
+        revenue,
+      },
+      charts: {
+        applicationsByDay: appsByDay.map(r => ({
+          day: r.day,
+          applications: r.count,
+        })),
+        byCategory: byCategory.map(r => ({
+          category: r.category,
+          count: r.count,
+        })),
+        byCountry: byCountry.map(r => ({
+          country: r.country,
+          count: r.count,
+        })),
+        registrationsByDay: registrations.map(r => ({
+          day: r.day,
+          signups: r.count,
+        })),
+      },
+      recentActivity: recentActivity.map(r => ({
+        type: r.type,
+        name: r.name,
+        status: r.status,
+        createdAt: r.created_at,
+      })),
+    });
+  } finally {
+    client.release();
+  }
 });
 
 // ── Applications ──────────────────────────────────────────────────────────────
 
 router.get("/admin/applications", async (_req, res): Promise<void> => {
-const apps = await db
-.select()
-.from(applicationsTable)
-.orderBy(applicationsTable.createdAt);
-res.json(apps.map((a) => ({...a, createdAt: a.createdAt.toISOString() })));
+  const apps = await db
+    .select()
+    .from(applicationsTable)
+    .orderBy(applicationsTable.createdAt);
+
+  res.json(apps.map((a) => ({
+    ...a,
+    createdAt: a.createdAt.toISOString(),
+  })));
 });
 
 router.patch("/admin/applications/:id/approve", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { notes } = req.body?? {};
+  const id = Number(req.params.id);
 
-const client = await pool.connect();
-try {
-const { rows } = await client.query(
-`SELECT a.*, j.title as job_title, j.location, j.salary
-FROM applications a LEFT JOIN jobs j ON j.id = a.job_id WHERE a.id = $1`,
-[id]
-);
-if (rows.length === 0) { res.status(404).json({ error: "Application not found" }); return; }
-const app = rows[0];
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
-let pdfBuffer: Buffer | null = null;
-try {
-pdfBuffer = await generateOfferLetterPdf({
-applicantName: `${app.first_name} ${app.last_name}`,
-jobTitle: app.job_title?? "Position",
-location: app.location?? "Europe",
-salary: app.salary?? "As discussed",
-startDate: app.available_from?? undefined,
-adminNotes: notes?? undefined,
-});
-} catch (err) {
-logger.error({ err }, "PDF generation failed — approving without PDF");
-}
+  const { notes } = req.body ?? {};
 
-await client.query(
-`UPDATE applications SET status = 'approved', admin_notes = $1 WHERE id = $2`,
-[notes?? null, id]
-);
+  const client = await pool.connect();
 
-res.json({ success: true, status: "approved" });
+  try {
+    const { rows } = await client.query(
+      `SELECT a.*, j.title as job_title, j.location, j.salary
+       FROM applications a
+       LEFT JOIN jobs j ON j.id = a.job_id
+       WHERE a.id = $1`,
+      [id]
+    );
 
-sendEmail({
-to: app.email,
-subject: `Congratulations — Your Application for ${app.job_title?? "the position"} is Approved`,
-html: applicationApprovedEmail(
-app.first_name,
-app.job_title?? "your applied position",
-notes?? "We will contact you shortly with the next steps."
-),
-attachments: pdfBuffer
-? [{ filename: "Job_Offer_Letter.pdf", content: pdfBuffer, contentType: "application/pdf" }]
-: undefined,
-}).then(() => logger.info({to: app.email}, "Approved email sent"))
-.catch((err) => logger.error({ err }, "Failed to send approved email"));
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
 
-} catch(err) {
-logger.error({err}, "Approve failed");
-if(!res.headersSent) res.status(500).json({error: "Approve failed"});
-} finally {
-client.release();
-}
+    const app = rows[0];
+
+    let pdfBuffer: Buffer | null = null;
+
+    try {
+      pdfBuffer = await generateOfferLetterPdf({
+        applicantName: `${app.first_name} ${app.last_name}`,
+        jobTitle: app.job_title ?? "Position",
+        location: app.location ?? "Europe",
+        salary: app.salary ?? "As discussed",
+        startDate: app.available_from ?? undefined,
+
+        // FIX 1: Pass the applicant's passport number to the PDF generator.
+        passportNumber: app.passport_number ?? undefined,
+
+        adminNotes: notes ?? undefined,
+      });
+    } catch (err) {
+      logger.error(
+        { err },
+        "PDF generation failed — approving without PDF"
+      );
+    }
+
+    await client.query(
+      `UPDATE applications
+       SET status = 'approved', admin_notes = $1
+       WHERE id = $2`,
+      [notes ?? null, id]
+    );
+
+    res.json({ success: true, status: "approved" });
+
+    sendEmail({
+      to: app.email,
+      subject: `Congratulations — Your Application for ${app.job_title ?? "the position"} is Approved`,
+      html: applicationApprovedEmail(
+        app.first_name,
+        app.job_title ?? "your applied position",
+        notes ?? "We will contact you shortly with the next steps."
+      ),
+      attachments: pdfBuffer
+        ? [{
+            filename: "Job_Offer_Letter.pdf",
+            content: pdfBuffer,
+            contentType: "application/pdf",
+          }]
+        : undefined,
+    })
+      .then(() => logger.info(
+        { to: app.email },
+        "Approved email sent"
+      ))
+      .catch((err) => logger.error(
+        { err },
+        "Failed to send approved email"
+      ));
+
+  } catch (err) {
+    logger.error({ err }, "Approve failed");
+
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Approve failed" });
+    }
+  } finally {
+    client.release();
+  }
 });
 
 router.patch("/admin/applications/:id/reject", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { reason } = req.body?? {};
+  const id = Number(req.params.id);
 
-const client = await pool.connect();
-try {
-const { rows } = await client.query(
-`SELECT a.*, j.title as job_title FROM applications a LEFT JOIN jobs j ON j.id = a.job_id WHERE a.id = $1`,
-[id]
-);
-if (rows.length === 0) { res.status(404).json({ error: "Application not found" }); return; }
-const app = rows[0];
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
-await client.query(
-`UPDATE applications SET status = 'rejected', admin_notes = $1 WHERE id = $2`,
-[reason?? null, id]
-);
+  const { reason } = req.body ?? {};
 
-res.json({ success: true, status: "rejected" });
+  const client = await pool.connect();
 
-sendEmail({
-to: app.email,
-subject: `Application Update — ${app.job_title?? "Your Application"}`,
-html: applicationRejectedEmail(app.first_name, app.job_title?? "the position", reason),
-}).catch((err) => logger.error({ err }, "Failed to send rejected email"));
+  try {
+    const { rows } = await client.query(
+      `SELECT a.*, j.title as job_title
+       FROM applications a
+       LEFT JOIN jobs j ON j.id = a.job_id
+       WHERE a.id = $1`,
+      [id]
+    );
 
-} finally {
-client.release();
-}
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+
+    const app = rows[0];
+
+    await client.query(
+      `UPDATE applications
+       SET status = 'rejected', admin_notes = $1
+       WHERE id = $2`,
+      [reason ?? null, id]
+    );
+
+    res.json({ success: true, status: "rejected" });
+
+    sendEmail({
+      to: app.email,
+      subject: `Application Update — ${app.job_title ?? "Your Application"}`,
+      html: applicationRejectedEmail(
+        app.first_name,
+        app.job_title ?? "the position",
+        reason
+      ),
+    }).catch((err) => logger.error(
+      { err },
+      "Failed to send rejected email"
+    ));
+
+  } finally {
+    client.release();
+  }
 });
 
 router.get("/admin/applications/:id/offer-letter", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const client = await pool.connect();
-try {
-const { rows } = await client.query(
-`SELECT a.*, j.title as job_title, j.location, j.salary
-FROM applications a LEFT JOIN jobs j ON j.id = a.job_id WHERE a.id = $1`,
-[id]
-);
-if (rows.length === 0) { res.status(404).json({ error: "Application not found" }); return; }
-const app = rows[0];
-const pdfBuffer = await generateOfferLetterPdf({
-applicantName: `${app.first_name} ${app.last_name}`,
-jobTitle: app.job_title?? "Position",
-location: app.location?? "Europe",
-salary: app.salary?? "As discussed",
-startDate: app.available_from?? undefined,
-adminNotes: app.admin_notes?? undefined,
-});
-res.setHeader("Content-Type", "application/pdf");
-res.setHeader("Content-Disposition", `attachment; filename="Offer_Letter_${id}.pdf"`);
-res.send(pdfBuffer);
-} finally {
-client.release();
-}
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `SELECT a.*, j.title as job_title, j.location, j.salary
+       FROM applications a
+       LEFT JOIN jobs j ON j.id = a.job_id
+       WHERE a.id = $1`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+
+    const app = rows[0];
+
+    const pdfBuffer = await generateOfferLetterPdf({
+      applicantName: `${app.first_name} ${app.last_name}`,
+      jobTitle: app.job_title ?? "Position",
+      location: app.location ?? "Europe",
+      salary: app.salary ?? "As discussed",
+      startDate: app.available_from ?? undefined,
+
+      // FIX 2: Pass the applicant's passport number to the PDF generator.
+      passportNumber: app.passport_number ?? undefined,
+
+      adminNotes: app.admin_notes ?? undefined,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="Offer_Letter_${id}.pdf"`
+    );
+
+    res.send(pdfBuffer);
+  } finally {
+    client.release();
+  }
 });
 
 // ── Application Search / Edit ────────────────────────────────────────────────
 
 router.get("/admin/applications/search/:referenceNumber", async (req, res): Promise<void> => {
-const referenceNumber = String(req.params.referenceNumber || "").trim().toUpperCase();
-if (!referenceNumber) { res.status(400).json({ error: "Reference Number is required" }); return; }
-try {
-const { rows } = await pool.query(
-`SELECT a.*, j.title AS job_title, j.location AS job_location, j.salary AS job_salary
- FROM applications a LEFT JOIN jobs j ON j.id = a.job_id
- WHERE a.reference_number = $1 LIMIT 1`,
-[referenceNumber]);
-if (!rows.length) { res.status(404).json({ error: "Application not found" }); return; }
-res.json({ application: rows[0] });
-} catch (err) { logger.error({ err }, "Application search failed"); res.status(500).json({ error: "Could not search application" }); }
+  const referenceNumber = String(
+    req.params.referenceNumber || ""
+  ).trim().toUpperCase();
+
+  if (!referenceNumber) {
+    res.status(400).json({ error: "Reference Number is required" });
+    return;
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.*, j.title AS job_title, j.location AS job_location,
+              j.salary AS job_salary
+       FROM applications a
+       LEFT JOIN jobs j ON j.id = a.job_id
+       WHERE a.reference_number = $1
+       LIMIT 1`,
+      [referenceNumber]
+    );
+
+    if (!rows.length) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+
+    res.json({ application: rows[0] });
+  } catch (err) {
+    logger.error({ err }, "Application search failed");
+    res.status(500).json({ error: "Could not search application" });
+  }
 });
 
 router.patch("/admin/applications/:id/edit", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const b = req.body ?? {};
-const map: Record<string,string> = {
-referenceNumber:"reference_number", firstName:"first_name", lastName:"last_name", email:"email", phone:"phone",
-nationality:"nationality", dateOfBirth:"date_of_birth", passportNumber:"passport_number",
-yearsExperience:"years_experience", skills:"skills", languages:"languages", availableFrom:"available_from",
-resumeUrl:"resume_url", coverLetter:"cover_letter", experience:"experience", status:"status",
-adminNotes:"admin_notes", employerName:"employer_name", employerCountry:"employer_country",
-passportCopyData:"passport_copy_data", photoData:"photo_data", medicalCertData:"medical_cert_data",
-criminalRecordData:"criminal_record_data", employerLogoData:"employer_logo_data"
-};
-const clauses:string[]=[]; const values:unknown[]=[]; let i=1;
-for (const [key,column] of Object.entries(map)) if (b[key] !== undefined) {
-clauses.push(`${column} = ${i++}`);
-values.push(b[key] === null ? null : String(b[key]));
-}
-if (!clauses.length) { res.status(400).json({ error: "No fields to update" }); return; }
-values.push(id);
-try {
-const { rows } = await pool.query(
-`UPDATE applications SET ${clauses.join(", ")} WHERE id = ${i}
- RETURNING *`, values);
-if (!rows.length) { res.status(404).json({ error: "Application not found" }); return; }
-res.json({ success:true, application:rows[0] });
-} catch (err:any) {
-if (err?.code === "23505") res.status(409).json({ error: "That Reference Number already exists" });
-else { logger.error({ err }, "Application edit failed"); res.status(500).json({ error: "Could not save application" }); }
-}
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const b = req.body ?? {};
+
+  const map: Record<string, string> = {
+    referenceNumber: "reference_number",
+    firstName: "first_name",
+    lastName: "last_name",
+    email: "email",
+    phone: "phone",
+    nationality: "nationality",
+    dateOfBirth: "date_of_birth",
+    passportNumber: "passport_number",
+    yearsExperience: "years_experience",
+    skills: "skills",
+    languages: "languages",
+    availableFrom: "available_from",
+    resumeUrl: "resume_url",
+    coverLetter: "cover_letter",
+    experience: "experience",
+    status: "status",
+    adminNotes: "admin_notes",
+    employerName: "employer_name",
+    employerCountry: "employer_country",
+    passportCopyData: "passport_copy_data",
+    photoData: "photo_data",
+    medicalCertData: "medical_cert_data",
+    criminalRecordData: "criminal_record_data",
+    employerLogoData: "employer_logo_data",
+  };
+
+  const clauses: string[] = [];
+  const values: unknown[] = [];
+  let i = 1;
+
+  for (const [key, column] of Object.entries(map)) {
+    if (b[key] !== undefined) {
+      clauses.push(`${column} = ${i++}`);
+      values.push(b[key] === null ? null : String(b[key]));
+    }
+  }
+
+  if (!clauses.length) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
+  values.push(id);
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE applications
+       SET ${clauses.join(", ")}
+       WHERE id = ${i}
+       RETURNING *`,
+      values
+    );
+
+    if (!rows.length) {
+      res.status(404).json({ error: "Application not found" });
+      return;
+    }
+
+    res.json({ success: true, application: rows[0] });
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      res.status(409).json({
+        error: "That Reference Number already exists",
+      });
+    } else {
+      logger.error({ err }, "Application edit failed");
+      res.status(500).json({
+        error: "Could not save application",
+      });
+    }
+  }
 });
 
 // ── Work Permits ──────────────────────────────────────────────────────────────
 
 router.get("/admin/work-permits", async (_req, res): Promise<void> => {
-const client = await pool.connect();
-try {
-const { rows } = await client.query(`SELECT * FROM work_permits ORDER BY created_at DESC`);
-res.json(rows);
-} finally {
-client.release();
-}
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `SELECT * FROM work_permits ORDER BY created_at DESC`
+    );
+
+    res.json(rows);
+  } finally {
+    client.release();
+  }
 });
 
 router.patch("/admin/work-permits/:id/approve", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { notes } = req.body?? {};
-const client = await pool.connect();
+  const id = Number(req.params.id);
 
-try {
-const approvedAt = new Date();
-const validUntil = new Date(approvedAt);
-validUntil.setFullYear(validUntil.getFullYear() + 1);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
-const { rows } = await client.query(
-`UPDATE work_permits
-SET status = 'approved', admin_notes = $1,
-approved_at = $2, valid_until = $3
-WHERE id = $4 RETURNING *`,
-[notes?? null, approvedAt, validUntil, id]
-);
-if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
-const permit = rows[0];
+  const { notes } = req.body ?? {};
+  const client = await pool.connect();
 
-let pdfBuffer: Buffer | null = null;
-try {
-pdfBuffer = await generateWorkPermitDecisionPdf({
-referenceNumber: permit.reference_number,
-firstName: permit.first_name,
-lastName: permit.last_name,
-nationality: permit.nationality,
-dateOfBirth: permit.date_of_birth,
-passportNumber: permit.passport_number,
-approvedAt,
-validUntil,
-});
-} catch (pdfErr) {
-logger.error({ err: pdfErr }, "Failed to generate work permit decision PDF");
-}
+  try {
+    const approvedAt = new Date();
+    const validUntil = new Date(approvedAt);
+    validUntil.setFullYear(validUntil.getFullYear() + 1);
 
-res.json({ success: true, status: "approved", validUntil: validUntil.toISOString() });
+    const { rows } = await client.query(
+      `UPDATE work_permits
+       SET status = 'approved', admin_notes = $1,
+           approved_at = $2, valid_until = $3
+       WHERE id = $4
+       RETURNING *`,
+      [notes ?? null, approvedAt, validUntil, id]
+    );
 
-sendEmail({
-to: permit.email,
-subject: `Work Permit Approved — ${permit.reference_number}`,
-html: workPermitApprovedEmail(permit.first_name, permit.reference_number, validUntil, notes?? undefined),
-attachments: pdfBuffer? [{
-filename: `work-permit-decision-${permit.reference_number}.pdf`,
-content: pdfBuffer,
-contentType: "application/pdf",
-}] : undefined,
-}).catch((emailErr) => logger.error({ err: emailErr }, "Failed to send work permit approved email"));
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
 
-} catch (globalErr) {
-logger.error({ err: globalErr }, "Error in work permit approval route");
-if(!res.headersSent) res.status(500).json({ error: "Internal server error" });
-} finally {
-client.release();
-}
+    const permit = rows[0];
+
+    let pdfBuffer: Buffer | null = null;
+
+    try {
+      pdfBuffer = await generateWorkPermitDecisionPdf({
+        referenceNumber: permit.reference_number,
+        firstName: permit.first_name,
+        lastName: permit.last_name,
+        nationality: permit.nationality,
+        dateOfBirth: permit.date_of_birth,
+        passportNumber: permit.passport_number,
+        approvedAt,
+        validUntil,
+      });
+    } catch (pdfErr) {
+      logger.error(
+        { err: pdfErr },
+        "Failed to generate work permit decision PDF"
+      );
+    }
+
+    res.json({
+      success: true,
+      status: "approved",
+      validUntil: validUntil.toISOString(),
+    });
+
+    sendEmail({
+      to: permit.email,
+      subject: `Work Permit Approved — ${permit.reference_number}`,
+      html: workPermitApprovedEmail(
+        permit.first_name,
+        permit.reference_number,
+        validUntil,
+        notes ?? undefined
+      ),
+      attachments: pdfBuffer
+        ? [{
+            filename: `work-permit-decision-${permit.reference_number}.pdf`,
+            content: pdfBuffer,
+            contentType: "application/pdf",
+          }]
+        : undefined,
+    }).catch((emailErr) => logger.error(
+      { err: emailErr },
+      "Failed to send work permit approved email"
+    ));
+
+  } catch (globalErr) {
+    logger.error(
+      { err: globalErr },
+      "Error in work permit approval route"
+    );
+
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  } finally {
+    client.release();
+  }
 });
 
 router.patch("/admin/work-permits/:id/reject", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { reason } = req.body?? {};
-const client = await pool.connect();
-try {
-const { rows } = await client.query(
-`UPDATE work_permits SET status = 'rejected', admin_notes = $1 WHERE id = $2 RETURNING *`,
-[reason?? null, id]
-);
-if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
-const permit = rows[0];
+  const id = Number(req.params.id);
 
-res.json({ success: true, status: "rejected" });
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
-sendEmail({
-to: permit.email,
-subject: `Work Permit Application Update — ${permit.reference_number}`,
-html: workPermitRejectedEmail(permit.first_name, permit.reference_number, reason?? undefined),
-}).catch((err) => logger.error({ err }, "Failed to send rejection email"));
+  const { reason } = req.body ?? {};
+  const client = await pool.connect();
 
-} catch (err) {
-logger.error({ err }, "Failed to process work permit rejection");
-if(!res.headersSent) res.status(500).json({ error: "Internal server error" });
-} finally { client.release(); }
+  try {
+    const { rows } = await client.query(
+      `UPDATE work_permits
+       SET status = 'rejected', admin_notes = $1
+       WHERE id = $2
+       RETURNING *`,
+      [reason ?? null, id]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const permit = rows[0];
+
+    res.json({ success: true, status: "rejected" });
+
+    sendEmail({
+      to: permit.email,
+      subject: `Work Permit Application Update — ${permit.reference_number}`,
+      html: workPermitRejectedEmail(
+        permit.first_name,
+        permit.reference_number,
+        reason ?? undefined
+      ),
+    }).catch((err) => logger.error(
+      { err },
+      "Failed to send rejection email"
+    ));
+
+  } catch (err) {
+    logger.error(
+      { err },
+      "Failed to process work permit rejection"
+    );
+
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  } finally {
+    client.release();
+  }
 });
 
-// ── Payments ───────────────────────────────────────────────────────────
+// ── Payments ──────────────────────────────────────────────────────────────────
 
 router.get("/admin/payments", async (_req, res): Promise<void> => {
-const client = await pool.connect();
-try {
-const { rows } = await client.query(
-`SELECT id, reference_number, first_name, last_name, email, job_title, employer_name,
-employer_country, status, payment_status, payment_method, receipt_url,
-receipt_filename, receipt_uploaded_at, payment_reviewed_at, payment_rejection_reason,
-created_at
-FROM work_permits
-WHERE receipt_url IS NOT NULL
-ORDER BY receipt_uploaded_at DESC NULLS LAST`
-);
-res.json(rows);
-} finally {
-client.release();
-}
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `SELECT id, reference_number, first_name, last_name, email, job_title,
+              employer_name, employer_country, status, payment_status,
+              payment_method, receipt_url, receipt_filename,
+              receipt_uploaded_at, payment_reviewed_at,
+              payment_rejection_reason, created_at
+       FROM work_permits
+       WHERE receipt_url IS NOT NULL
+       ORDER BY receipt_uploaded_at DESC NULLS LAST`
+    );
+
+    res.json(rows);
+  } finally {
+    client.release();
+  }
 });
 
 router.patch("/admin/payments/:id/approve", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const client = await pool.connect();
-try {
-const { rows } = await client.query(
-`UPDATE work_permits
-SET payment_status = 'paid', status = CASE WHEN status = 'submitted' THEN 'payment_confirmed' ELSE status END,
-payment_reviewed_at = NOW(), payment_rejection_reason = NULL
-WHERE id = $1 RETURNING *`,
-[id]
-);
-if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
-const permit = rows[0];
+  const id = Number(req.params.id);
 
-res.json({ success: true, paymentStatus: "paid" });
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
-sendEmail({
-to: permit.email,
-subject: `Payment Approved — ${permit.reference_number}`,
-html: workPermitPaymentApprovedEmail(permit.first_name, permit.reference_number),
-}).catch((err) => logger.error({ err }, "Failed to send payment approved email"));
+  const client = await pool.connect();
 
-} finally {
-client.release();
-}
+  try {
+    const { rows } = await client.query(
+      `UPDATE work_permits
+       SET payment_status = 'paid',
+           status = CASE
+             WHEN status = 'submitted' THEN 'payment_confirmed'
+             ELSE status
+           END,
+           payment_reviewed_at = NOW(),
+           payment_rejection_reason = NULL
+       WHERE id = $1
+       RETURNING *`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const permit = rows[0];
+
+    res.json({ success: true, paymentStatus: "paid" });
+
+    sendEmail({
+      to: permit.email,
+      subject: `Payment Approved — ${permit.reference_number}`,
+      html: workPermitPaymentApprovedEmail(
+        permit.first_name,
+        permit.reference_number
+      ),
+    }).catch((err) => logger.error(
+      { err },
+      "Failed to send payment approved email"
+    ));
+
+  } finally {
+    client.release();
+  }
 });
 
 router.patch("/admin/payments/:id/reject", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const { reason } = req.body?? {};
-const client = await pool.connect();
-try {
-const { rows } = await client.query(
-`UPDATE work_permits
-SET payment_status = 'rejected', payment_reviewed_at = NOW(), payment_rejection_reason = $1
-WHERE id = $2 RETURNING *`,
-[reason?? null, id]
-);
-if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
-const permit = rows[0];
+  const id = Number(req.params.id);
 
-res.json({ success: true, paymentStatus: "rejected" });
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
 
-sendEmail({
-to: permit.email,
-subject: `Payment Receipt Update — ${permit.reference_number}`,
-html: workPermitPaymentRejectedEmail(permit.first_name, permit.reference_number, reason?? undefined),
-}).catch((err) => logger.error({ err }, "Failed to send payment rejected email"));
+  const { reason } = req.body ?? {};
+  const client = await pool.connect();
 
-} finally {
-client.release();
-}
+  try {
+    const { rows } = await client.query(
+      `UPDATE work_permits
+       SET payment_status = 'rejected',
+           payment_reviewed_at = NOW(),
+           payment_rejection_reason = $1
+       WHERE id = $2
+       RETURNING *`,
+      [reason ?? null, id]
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const permit = rows[0];
+
+    res.json({ success: true, paymentStatus: "rejected" });
+
+    sendEmail({
+      to: permit.email,
+      subject: `Payment Receipt Update — ${permit.reference_number}`,
+      html: workPermitPaymentRejectedEmail(
+        permit.first_name,
+        permit.reference_number
+      ),
+    }).catch((err) => logger.error(
+      { err },
+      "Failed to send payment rejected email"
+    ));
+
+  } finally {
+    client.release();
+  }
 });
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────
 
 router.post("/admin/jobs", async (req, res): Promise<void> => {
-const { title, location, salary, category, type, description, requirements, benefits, isActive } = req.body?? {};
-if (!title ||!location ||!category) {
-res.status(400).json({ error: "title, location and category are required" });
-return;
-}
-const [job] = await db
-.insert(jobsTable)
-.values({
-title: String(title).trim(),
-location: String(location).trim(),
-salary: salary? String(salary).trim() : "Competitive",
-category: String(category).trim(),
-type: type? String(type).trim() : "Full-time",
-description: description? String(description).trim() : "",
-requirements: requirements? String(requirements).trim() : "",
-benefits: benefits? String(benefits).trim() : undefined,
-isActive: isActive!== false,
-})
-.returning();
-res.status(201).json(job);
+  const {
+    title,
+    location,
+    salary,
+    category,
+    type,
+    description,
+    requirements,
+    benefits,
+    isActive,
+  } = req.body ?? {};
+
+  if (!title || !location || !category) {
+    res.status(400).json({
+      error: "title, location and category are required",
+    });
+    return;
+  }
+
+  const [job] = await db
+    .insert(jobsTable)
+    .values({
+      title: String(title).trim(),
+      location: String(location).trim(),
+      salary: salary ? String(salary).trim() : "Competitive",
+      category: String(category).trim(),
+      type: type ? String(type).trim() : "Full-time",
+      description: description ? String(description).trim() : "",
+      requirements: requirements ? String(requirements).trim() : "",
+      benefits: benefits ? String(benefits).trim() : undefined,
+      isActive: isActive !== false,
+    })
+    .returning();
+
+  res.status(201).json(job);
 });
 
 router.patch("/admin/jobs/:id", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const body = req.body?? {};
-const client = await pool.connect();
-try {
-const setClauses: string[] = [];
-const values: unknown[] = [];
-let idx = 1;
-const strField = (key: string, col: string) => {
-if (body[key]!== undefined) { setClauses.push(`${col} = $${idx++}`); values.push(String(body[key]).trim()); }
-};
-strField("title", "title");
-strField("location", "location");
-strField("salary", "salary");
-strField("category", "category");
-strField("type", "type");
-strField("description", "description");
-strField("requirements", "requirements");
-strField("benefits", "benefits");
-if (body.isActive!== undefined) { setClauses.push(`is_active = $${idx++}`); values.push(Boolean(body.isActive)); }
-if (setClauses.length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
-values.push(id);
-const { rows } = await client.query(
-`UPDATE jobs SET ${setClauses.join(", ")} WHERE id = $${idx} RETURNING *`,
-values
-);
-if (rows.length === 0) { res.status(404).json({ error: "Job not found" }); return; }
-res.json(rows[0]);
-} finally {
-client.release();
-}
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const body = req.body ?? {};
+  const client = await pool.connect();
+
+  try {
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    const strField = (key: string, col: string) => {
+      if (body[key] !== undefined) {
+        setClauses.push(`${col} = $${idx++}`);
+        values.push(String(body[key]).trim());
+      }
+    };
+
+    strField("title", "title");
+    strField("location", "location");
+    strField("salary", "salary");
+    strField("category", "category");
+    strField("type", "type");
+    strField("description", "description");
+    strField("requirements", "requirements");
+    strField("benefits", "benefits");
+
+    if (body.isActive !== undefined) {
+      setClauses.push(`is_active = $${idx++}`);
+      values.push(Boolean(body.isActive));
+    }
+
+    if (setClauses.length === 0) {
+      res.status(400).json({ error: "No fields to update" });
+      return;
+    }
+
+    values.push(id);
+
+    const { rows } = await client.query(
+      `UPDATE jobs
+       SET ${setClauses.join(", ")}
+       WHERE id = $${idx}
+       RETURNING *`,
+      values
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Job not found" });
+      return;
+    }
+
+    res.json(rows[0]);
+  } finally {
+    client.release();
+  }
 });
 
 router.patch("/admin/jobs/:id/toggle", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, id));
-if (!job) { res.status(404).json({ error: "Job not found" }); return; }
-const [updated] = await db.update(jobsTable).set({ isActive:!job.isActive }).where(eq(jobsTable.id, id)).returning();
-res.json(updated);
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const [job] = await db
+    .select()
+    .from(jobsTable)
+    .where(eq(jobsTable.id, id));
+
+  if (!job) {
+    res.status(404).json({ error: "Job not found" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(jobsTable)
+    .set({ isActive: !job.isActive })
+    .where(eq(jobsTable.id, id))
+    .returning();
+
+  res.json(updated);
 });
 
 router.delete("/admin/jobs/:id", async (req, res): Promise<void> => {
-const id = Number(req.params.id);
-if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-await db.delete(jobsTable).where(eq(jobsTable.id, id));
-res.json({ success: true });
+  const id = Number(req.params.id);
+
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  await db.delete(jobsTable).where(eq(jobsTable.id, id));
+
+  res.json({ success: true });
 });
 
 export default router;
