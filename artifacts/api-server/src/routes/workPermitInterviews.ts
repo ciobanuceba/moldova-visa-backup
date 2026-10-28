@@ -62,6 +62,30 @@ router.post("/interviews/start", async (req, res): Promise<void> => {
   }
 });
 
+router.post("/interviews/:id/progress", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const accessToken = String(req.body?.accessToken || "");
+  const answers = req.body?.answers;
+  if (!Number.isInteger(id) || id <= 0 || !/^[a-f0-9]{48}$/.test(accessToken) || !Array.isArray(answers) || answers.length !== QUESTIONS.length ||
+      answers.some((a: unknown) => typeof a !== "string" || a.length > 12000)) {
+    res.status(400).json({ error: "Invalid interview progress." });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      "UPDATE work_permit_interviews SET answers = $1::jsonb WHERE id = $2 AND access_token = $3 AND status = 'in_progress' AND expires_at > NOW() RETURNING id",
+      [JSON.stringify(answers.map((a: string) => a.trim())), id, accessToken]
+    );
+    if (!result.rows.length) {
+      res.status(409).json({ error: "Interview expired or closed." });
+      return;
+    }
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Could not save interview progress." });
+  }
+});
+
 router.post("/interviews/:id/submit", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const answers = req.body?.answers;
