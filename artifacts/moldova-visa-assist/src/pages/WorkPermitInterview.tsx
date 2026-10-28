@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Clock3, Mic, Volume2, ShieldCheck } from "lucide-react";
+import { Clock3, Mic, Volume2, ShieldCheck, Camera, CameraOff } from "lucide-react";
 
 type InterviewSession = {
   interviewId: number;
@@ -22,6 +22,12 @@ export default function WorkPermitInterview() {
   const [referenceNumber, setReferenceNumber] = useState(() => new URLSearchParams(window.location.search).get("reference")?.toUpperCase() || "");
   const [candidateName, setCandidateName] = useState("");
   const [consent, setConsent] = useState(false);
+  const [identityConsent, setIdentityConsent] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [selfieChecked, setSelfieChecked] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [answers, setAnswers] = useState<string[]>([]);
   const [index, setIndex] = useState(0);
@@ -92,12 +98,50 @@ export default function WorkPermitInterview() {
     return () => window.clearInterval(handle);
   }, [session, closed]);
 
-  useEffect(() => () => stopMic(), []);
+  useEffect(() => () => {
+    stopMic();
+    cameraStreamRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
+
+  async function enableCamera() {
+    setCameraError("");
+    setSelfieChecked(false);
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("This browser does not support camera access. Please use an up-to-date browser.");
+      }
+      cameraStreamRef.current?.getTracks().forEach(track => track.stop());
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraReady(true);
+    } catch (err: any) {
+      setCameraReady(false);
+      setCameraError(err?.message || "Camera access was denied. Allow camera permission and try again.");
+    }
+  }
+
+  function confirmLiveFaceCheck() {
+    if (!videoRef.current || !cameraStreamRef.current?.getVideoTracks().some(track => track.readyState === "live") ||
+        videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+      setCameraError("Please turn on the camera and wait until your live image appears.");
+      return;
+    }
+    // Local live-camera check only; no image is captured or uploaded.
+    setSelfieChecked(true);
+    setCameraError("");
+  }
 
   async function startInterview(e: React.FormEvent) {
     e.preventDefault();
-    if (!consent) {
-      toast({ title: "Consent required", description: "Please confirm that you understand this AI interview demonstration.", variant: "destructive" });
+    if (!consent || !identityConsent || !cameraReady || !selfieChecked) {
+      toast({ title: "Identity check required", description: "Enable the camera, confirm your live image, and accept both consent statements before starting.", variant: "destructive" });
       return;
     }
     setStarting(true);
@@ -182,8 +226,21 @@ export default function WorkPermitInterview() {
             <p className="text-muted-foreground">Use the Work Permit Reference Number shown when your application was submitted, for example <span className="font-mono">MVA-2026-ABC123</span>.</p>
             <div className="space-y-2"><label className="text-sm font-semibold" htmlFor="reference">Work Permit Reference Number *</label><Input id="reference" required value={referenceNumber} onChange={e => setReferenceNumber(e.target.value.toUpperCase())} placeholder="MVA-2026-ABC123" autoCapitalize="characters" /></div>
             <div className="space-y-2"><label className="text-sm font-semibold" htmlFor="candidateName">Candidate name (optional)</label><Input id="candidateName" value={candidateName} onChange={e => setCandidateName(e.target.value)} placeholder="Enter your name" /></div>
+            <div className="space-y-3 rounded-xl border p-4">
+              <div className="flex items-center gap-2 font-semibold"><Camera className="h-5 w-5" /> Live camera identity check</div>
+              <p className="text-sm text-muted-foreground">Turn on your camera and check that your own face is visible before starting. The image stays on this device and is not recorded or uploaded.</p>
+              <video ref={videoRef} autoPlay muted playsInline className="mx-auto aspect-video w-full max-w-md rounded-lg bg-black object-cover" aria-label="Live camera preview" />
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" onClick={enableCamera}><Camera className="mr-2 h-4 w-4" />{cameraReady ? "Restart camera" : "Turn on camera"}</Button>
+                <Button type="button" variant="outline" onClick={confirmLiveFaceCheck} disabled={!cameraReady}><ShieldCheck className="mr-2 h-4 w-4" />Confirm my live face</Button>
+                {cameraReady && <span className="inline-flex items-center gap-1 text-sm text-emerald-700"><CameraOff className="h-4 w-4" />Camera enabled</span>}
+              </div>
+              {selfieChecked && <p className="text-sm font-medium text-emerald-700">Live camera check confirmed on this device.</p>}
+              {cameraError && <p role="alert" className="text-sm text-destructive">{cameraError}</p>}
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-muted/50 p-3 text-sm leading-6"><input className="mt-1" type="checkbox" checked={identityConsent} onChange={e => setIdentityConsent(e.target.checked)} /><span>I confirm that I am the applicant named on this application and I will personally complete this interview. I understand the camera preview alone cannot conclusively verify my identity.</span></label>
+            </div>
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm leading-6"><input className="mt-1" type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} /><span>I understand this is an AI interview. My written/transcribed answers will be saved against my Work Permit Reference Number for admin review. Audio recordings are not saved. This interview does not guarantee a job offer or work permit.</span></label>
-            <Button type="submit" size="lg" className="w-full" disabled={starting || !consent}>{starting ? "Checking reference number…" : "Start interview"}</Button>
+            <Button type="submit" size="lg" className="w-full" disabled={starting || !consent || !identityConsent || !cameraReady || !selfieChecked}>{starting ? "Checking reference number…" : "Start interview"}</Button>
           </form>
         ) : closed ? (
           <section className="rounded-3xl border bg-card p-7 shadow-sm md:p-9">
