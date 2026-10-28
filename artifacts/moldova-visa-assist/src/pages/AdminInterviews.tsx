@@ -29,6 +29,43 @@ export default function AdminInterviews() {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<number | null>(null);
+  const [accessReference, setAccessReference] = useState("MVA-2026-69E95F");
+  const [accessEnabled, setAccessEnabled] = useState(false);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessSaving, setAccessSaving] = useState(false);
+
+  async function loadAccess() {
+    if (!user || !isAdmin) return;
+    setAccessLoading(true);
+    try {
+      const response = await fetch("/api/admin/interviews/access", { headers: authHeaders(user.token) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not load interview access settings");
+      if (data.referenceNumber) setAccessReference(data.referenceNumber);
+      setAccessEnabled(Boolean(data.enabled));
+    } catch (err: any) {
+      toast({ title: "Unable to load interview settings", description: err.message || "Please try again.", variant: "destructive" });
+    } finally { setAccessLoading(false); }
+  }
+
+  async function saveAccess(enabled: boolean) {
+    if (!user || !isAdmin) return;
+    setAccessSaving(true);
+    try {
+      const response = await fetch("/api/admin/interviews/access", {
+        method: "POST",
+        headers: { ...authHeaders(user.token), "Content-Type": "application/json" },
+        body: JSON.stringify({ referenceNumber: accessReference.trim().toUpperCase(), enabled }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update interview access");
+      setAccessReference(data.referenceNumber);
+      setAccessEnabled(Boolean(data.enabled));
+      toast({ title: enabled ? "Interview enabled" : "Interview disabled", description: enabled ? `Only ${data.referenceNumber} can start the interview now.` : "No candidate can start an interview until you enable it again." });
+    } catch (err: any) {
+      toast({ title: "Could not save interview settings", description: err.message || "Please try again.", variant: "destructive" });
+    } finally { setAccessSaving(false); }
+  }
 
   async function load() {
     if (!user || !isAdmin) return;
@@ -43,7 +80,7 @@ export default function AdminInterviews() {
     } finally { setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, [user, isAdmin]);
+  useEffect(() => { void load(); void loadAccess(); }, [user, isAdmin]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -60,6 +97,22 @@ export default function AdminInterviews() {
           <div><Button asChild variant="ghost" className="mb-2 -ml-3"><Link href="/admin"><ArrowLeft className="mr-2 h-4 w-4" />Back to Admin Dashboard</Link></Button><h1 className="text-3xl font-bold text-primary">Work Permit Interviews</h1><p className="mt-2 text-muted-foreground">Interview records linked to existing Work Permit Reference Numbers.</p></div>
           <Button onClick={() => void load()} variant="outline" disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
         </div>
+        <section className="mb-6 rounded-xl border bg-card p-5 shadow-sm md:p-6">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-primary">Interview access control</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Choose which reference number is allowed to start an interview. You can enable or stop access at any time.</p>
+            </div>
+            <Badge variant={accessEnabled ? "default" : "secondary"}>{accessLoading ? "Loading…" : accessEnabled ? "Interview enabled" : "Interview disabled"}</Badge>
+          </div>
+          <label htmlFor="interview-access-reference" className="mb-2 block text-sm font-semibold">Allowed Work Permit Reference Number</label>
+          <Input id="interview-access-reference" value={accessReference} onChange={e => setAccessReference(e.target.value.toUpperCase())} placeholder="MVA-2026-ABC123" autoCapitalize="characters" disabled={accessLoading || accessSaving} className="mb-4 max-w-xl font-mono" />
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" onClick={() => void saveAccess(true)} disabled={accessLoading || accessSaving}>{accessSaving ? "Saving…" : "Save & Enable Interview"}</Button>
+            <Button type="button" variant="destructive" onClick={() => void saveAccess(false)} disabled={accessLoading || accessSaving}>{accessSaving ? "Saving…" : "Disable Interview"}</Button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">When enabled, only the reference number above can start an interview. Other applicants will see the English “interview time has not started yet” message. Disabling stops all new interview starts.</p>
+        </section>
         <div className="mb-5 grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl border bg-card p-5"><div className="text-sm text-muted-foreground">Total interview attempts</div><div className="mt-1 text-3xl font-bold">{records.length}</div></div>
           <div className="rounded-xl border bg-card p-5"><div className="text-sm text-muted-foreground">Completed</div><div className="mt-1 text-3xl font-bold">{records.filter(r => r.status === "completed").length}</div></div>

@@ -43,5 +43,14 @@ export async function runMigrations(): Promise<void> {
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS work_permit_interviews_access_token_idx ON work_permit_interviews(access_token) WHERE access_token IS NOT NULL;`);
     await client.query(`CREATE INDEX IF NOT EXISTS work_permit_interviews_reference_idx ON work_permit_interviews(reference_number);`);
     await client.query(`CREATE INDEX IF NOT EXISTS work_permit_interviews_created_idx ON work_permit_interviews(created_at DESC);`);
+    await client.query(`CREATE TABLE IF NOT EXISTS interview_access_settings (
+      setting_key TEXT PRIMARY KEY,
+      reference_number TEXT NOT NULL,
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );`);
+    await client.query(`INSERT INTO interview_access_settings (setting_key, reference_number, enabled)
+      VALUES ('primary', 'MVA-2026-69E95F', TRUE)
+      ON CONFLICT (setting_key) DO NOTHING;`);
   } finally { client.release(); }
 }
