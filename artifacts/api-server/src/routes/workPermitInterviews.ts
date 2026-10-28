@@ -33,6 +33,11 @@ router.post("/interviews/start", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Enter a valid Work Permit Reference Number (MVA-YYYY-XXXXXX)." });
     return;
   }
+  // Temporarily allow interviews only for the scheduled candidate.
+  if (referenceNumber !== "MVA-2026-69E95F") {
+    res.status(403).json({ error: "The interview time has not started yet. Please wait until your scheduled interview time." });
+    return;
+  }
   try {
     const permit = await pool.query(
       "SELECT id, first_name, last_name, job_title, employer_name FROM work_permits WHERE reference_number = $1 LIMIT 1",
