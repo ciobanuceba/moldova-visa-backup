@@ -162,8 +162,6 @@ export default function AdminInterviews() {
                       <Trash2 className="mr-2 h-4 w-4" />{deletingId === record.id ? "Deleting…" : "Delete Interview"}
                     </Button>
                   </div>
-                  <div className="hidden">
-                    <div className="mb-4 grid gap-3 text-sm sm:grid-cols-3"><div><span className="text-muted-foreground">Interview ID:</span> {record.id}</div><div><span className="text-muted-foreground">Consent:</span> {record.consent ? "Confirmed" : "Not recorded"}</div><div><span className="text-muted-foreground">Completed:</span> {record.completed_at ? new Date(record.completed_at).toLocaleString() : "Not completed"}</div></div>
                   <div className="space-y-4">{(Array.isArray(record.questions) ? record.questions : []).map((question, i) => <div key={i} className="rounded-lg bg-muted/40 p-4"><div className="mb-2 font-semibold">{i + 1}. {question}</div><p className="whitespace-pre-wrap text-sm leading-6">{Array.isArray(record.answers) && record.answers[i] ? record.answers[i] : "No answer provided."}</p></div>)}</div>
                 </div>}
               </section>;
