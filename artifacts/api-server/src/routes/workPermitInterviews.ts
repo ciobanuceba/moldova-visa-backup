@@ -33,9 +33,17 @@ router.post("/interviews/start", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Enter a valid Work Permit Reference Number (MVA-YYYY-XXXXXX)." });
     return;
   }
-  // Temporarily allow interviews only for the scheduled candidate.
-  if (referenceNumber !== "MVA-2026-69E95F") {
-    res.status(403).json({ error: "The interview time has not started yet. Please wait until your scheduled interview time." });
+  try {
+    const access = await pool.query(
+      "SELECT reference_number, enabled FROM interview_access_settings WHERE setting_key = 'primary' LIMIT 1"
+    );
+    const setting = access.rows[0];
+    if (!setting?.enabled || referenceNumber !== setting?.reference_number) {
+      res.status(403).json({ error: "The interview time has not started yet. Please wait until your scheduled interview time." });
+      return;
+    }
+  } catch {
+    res.status(503).json({ error: "Interview access is temporarily unavailable. Please try again later." });
     return;
   }
   try {
@@ -122,6 +130,55 @@ router.post("/interviews/:id/submit", async (req, res): Promise<void> => {
     res.json({ success: true, referenceNumber: result.rows[0].reference_number, status: result.rows[0].status });
   } catch {
     res.status(500).json({ error: "Could not save interview answers." });
+  }
+});
+
+router.get("/admin/interviews/access", requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    const result = await pool.query(
+      "SELECT reference_number, enabled, updated_at FROM interview_access_settings WHERE setting_key = 'primary' LIMIT 1"
+    );
+    if (!result.rows.length) {
+      res.json({ referenceNumber: "", enabled: false, updatedAt: null });
+      return;
+    }
+    res.json({
+      referenceNumber: result.rows[0].reference_number,
+      enabled: result.rows[0].enabled,
+      updatedAt: result.rows[0].updated_at,
+    });
+  } catch {
+    res.status(500).json({ error: "Could not load interview access settings." });
+  }
+});
+
+router.post("/admin/interviews/access", requireAdmin, async (req, res): Promise<void> => {
+  const referenceNumber = String(req.body?.referenceNumber || "").trim().toUpperCase();
+  const enabled = req.body?.enabled;
+  if (!/^MVA-\\d{4}-[A-F0-9]{6}$/.test(referenceNumber) || typeof enabled !== "boolean") {
+    res.status(400).json({ error: "Enter a valid reference number and choose whether interviews are enabled." });
+    return;
+  }
+  try {
+    const permit = await pool.query(
+      "SELECT id FROM work_permits WHERE reference_number = $1 LIMIT 1",
+      [referenceNumber]
+    );
+    if (!permit.rows.length) {
+      res.status(404).json({ error: "That Work Permit Reference Number was not found." });
+      return;
+    }
+    const result = await pool.query(
+      `INSERT INTO interview_access_settings (setting_key, reference_number, enabled, updated_at)
+       VALUES ('primary', $1, $2, NOW())
+       ON CONFLICT (setting_key) DO UPDATE
+       SET reference_number = EXCLUDED.reference_number, enabled = EXCLUDED.enabled, updated_at = NOW()
+       RETURNING reference_number, enabled, updated_at`,
+      [referenceNumber, enabled]
+    );
+    res.json({ referenceNumber: result.rows[0].reference_number, enabled: result.rows[0].enabled, updatedAt: result.rows[0].updated_at });
+  } catch {
+    res.status(500).json({ error: "Could not update interview access settings." });
   }
 });
 
