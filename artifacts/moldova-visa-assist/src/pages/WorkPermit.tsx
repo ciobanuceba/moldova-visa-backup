@@ -187,6 +187,7 @@ export default function WorkPermit() {
             Save this reference number. Our immigration specialists will review your application along with the uploaded documents and contact you within <strong>3–5 business days</strong>.
           </p>
           <div className="space-y-3">
+            <Button className="w-full" asChild><Link href={`/interview?reference=${encodeURIComponent(referenceNumber)}`}>Start Greenhouse Worker Interview</Link></Button>
             <Button className="w-full" asChild><Link href="/jobs">Browse Job Opportunities</Link></Button>
             <Button variant="outline" className="w-full" asChild><Link href="/contact">Contact Our Team</Link></Button>
             <Button variant="ghost" className="w-full" asChild><Link href="/">Return to Home</Link></Button>
