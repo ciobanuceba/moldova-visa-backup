@@ -30,6 +30,7 @@ export default function WorkPermitInterview() {
   const [closed, setClosed] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const recognitionRef = useRef<any>(null);
+  const answersRef = useRef<string[]>([]);
   const deadlineRef = useRef<number>(0);
 
   const stopMic = () => {
@@ -73,6 +74,21 @@ export default function WorkPermitInterview() {
     const handle = window.setInterval(tick, 500);
     return () => window.clearInterval(handle);
   }, [session, closed, answers]);
+
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+
+  useEffect(() => {
+    if (!session || closed) return;
+    const handle = window.setInterval(() => {
+      if (Date.now() >= deadlineRef.current) return;
+      fetch(`/api/interviews/${session.interviewId}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: answersRef.current, accessToken: session.accessToken }),
+      }).catch(() => {});
+    }, 5000);
+    return () => window.clearInterval(handle);
+  }, [session, closed]);
 
   useEffect(() => () => stopMic(), []);
 
