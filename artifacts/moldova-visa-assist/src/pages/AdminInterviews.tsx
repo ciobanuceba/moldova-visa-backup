@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth, authHeaders } from "@/lib/auth";
-import { ArrowLeft, RefreshCw, Search, ClipboardList, Clock3 } from "lucide-react";
+import { ArrowLeft, RefreshCw, Search, ClipboardList, Clock3, Trash2 } from "lucide-react";
 
 type InterviewRecord = {
   id: number;
@@ -33,6 +33,7 @@ export default function AdminInterviews() {
   const [accessEnabled, setAccessEnabled] = useState(false);
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessSaving, setAccessSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   async function loadAccess() {
     if (!user || !isAdmin) return;
@@ -65,6 +66,28 @@ export default function AdminInterviews() {
     } catch (err: any) {
       toast({ title: "Could not save interview settings", description: err.message || "Please try again.", variant: "destructive" });
     } finally { setAccessSaving(false); }
+  }
+
+  async function deleteInterview(record: InterviewRecord) {
+    if (!user || !isAdmin || deletingId !== null) return;
+    const confirmed = window.confirm(`Delete the interview for ${record.candidate_name || "this candidate"} (Reference: ${record.reference_number})? This permanently deletes only this interview and its answers. The Work Permit will not be changed.`);
+    if (!confirmed) return;
+    setDeletingId(record.id);
+    try {
+      const response = await fetch(`/api/admin/work-permit-interviews/${record.id}`, {
+        method: "DELETE",
+        headers: authHeaders(user.token),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not delete interview");
+      setRecords(current => current.filter(item => item.id !== record.id));
+      setSelected(current => current === record.id ? null : current);
+      toast({ title: "Interview deleted", description: "Only this interview record and its answers were deleted. The Work Permit remains unchanged." });
+    } catch (err: any) {
+      toast({ title: "Could not delete interview", description: err.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function load() {
@@ -129,7 +152,18 @@ export default function AdminInterviews() {
                   <div className="flex flex-wrap items-center gap-3"><Badge variant={record.status === "completed" ? "default" : "secondary"}>{record.status.replaceAll("_", " ")}</Badge><span className="text-sm text-muted-foreground">{Array.isArray(record.answers) ? record.answers.filter(a => String(a || "").trim()).length : 0}/10 answers</span><span className="text-sm font-semibold text-primary">{expanded ? "Hide answers −" : "View answers +"}</span></div>
                 </button>
                 {expanded && <div className="border-t p-5">
-                  <div className="mb-4 grid gap-3 text-sm sm:grid-cols-3"><div><span className="text-muted-foreground">Interview ID:</span> {record.id}</div><div><span className="text-muted-foreground">Consent:</span> {record.consent ? "Confirmed" : "Not recorded"}</div><div><span className="text-muted-foreground">Completed:</span> {record.completed_at ? new Date(record.completed_at).toLocaleString() : "Not completed"}</div></div>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="grid gap-3 text-sm sm:grid-cols-3">
+                      <div><span className="text-muted-foreground">Interview ID:</span> {record.id}</div>
+                      <div><span className="text-muted-foreground">Consent:</span> {record.consent ? "Confirmed" : "Not recorded"}</div>
+                      <div><span className="text-muted-foreground">Completed:</span> {record.completed_at ? new Date(record.completed_at).toLocaleString() : "Not completed"}</div>
+                    </div>
+                    <Button type="button" variant="destructive" size="sm" onClick={() => void deleteInterview(record)} disabled={deletingId !== null}>
+                      <Trash2 className="mr-2 h-4 w-4" />{deletingId === record.id ? "Deleting…" : "Delete Interview"}
+                    </Button>
+                  </div>
+                  <div className="hidden">
+                    <div className="mb-4 grid gap-3 text-sm sm:grid-cols-3"><div><span className="text-muted-foreground">Interview ID:</span> {record.id}</div><div><span className="text-muted-foreground">Consent:</span> {record.consent ? "Confirmed" : "Not recorded"}</div><div><span className="text-muted-foreground">Completed:</span> {record.completed_at ? new Date(record.completed_at).toLocaleString() : "Not completed"}</div></div>
                   <div className="space-y-4">{(Array.isArray(record.questions) ? record.questions : []).map((question, i) => <div key={i} className="rounded-lg bg-muted/40 p-4"><div className="mb-2 font-semibold">{i + 1}. {question}</div><p className="whitespace-pre-wrap text-sm leading-6">{Array.isArray(record.answers) && record.answers[i] ? record.answers[i] : "No answer provided."}</p></div>)}</div>
                 </div>}
               </section>;
