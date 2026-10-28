@@ -105,7 +105,7 @@ export default function WorkPermitInterview() {
       const response = await fetch("/api/interviews/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ referenceNumber: referenceNumber.trim().toUpperCase(), candidateName }),
+        body: JSON.stringify({ referenceNumber: referenceNumber.trim().toUpperCase(), candidateName, consent: true }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not start interview");
