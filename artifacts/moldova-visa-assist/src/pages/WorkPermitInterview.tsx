@@ -113,6 +113,12 @@ export default function WorkPermitInterview() {
     return () => window.clearInterval(handle);
   }, [session, closed]);
 
+  useEffect(() => {
+    if (!session || closed || !videoRef.current || !cameraStreamRef.current) return;
+    videoRef.current.srcObject = cameraStreamRef.current;
+    void videoRef.current.play().catch(() => {});
+  }, [session, closed]);
+
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
   useEffect(() => {
@@ -305,9 +311,15 @@ export default function WorkPermitInterview() {
           </section>
         ) : (
           <section className="rounded-3xl border bg-card p-6 shadow-sm md:p-9">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">Question {index + 1} of {session.questions.length}</span>
-              <span className={`flex items-center gap-2 font-mono text-lg font-bold ${secondsLeft <= 60 ? "text-red-600" : "text-primary"}`}><Clock3 className="h-5 w-5" />{timeLabel} remaining</span>
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">Question {index + 1} of {session.questions.length}</span>
+                <span className={`flex items-center gap-2 font-mono text-lg font-bold ${secondsLeft <= 60 ? "text-red-600" : "text-primary"}`}><Clock3 className="h-5 w-5" />{timeLabel} remaining</span>
+              </div>
+              <div className="w-28 shrink-0 sm:w-36">
+                <video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full rounded-lg bg-black object-cover" aria-label="Your live interview video preview" />
+                <div className="mt-1 flex items-center justify-center gap-1 text-xs font-medium text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-600" />Camera on</div>
+              </div>
             </div>
             <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-emerald-700 transition-all" style={{ width: `${((index + 1) / session.questions.length) * 100}%` }} /></div>
             <div className="mb-3 text-sm text-muted-foreground">Reference: <span className="font-mono font-semibold text-foreground">{session.referenceNumber}</span></div>
