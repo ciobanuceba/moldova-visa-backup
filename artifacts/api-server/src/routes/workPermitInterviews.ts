@@ -25,6 +25,10 @@ router.get("/interviews/questions", (_req, res) => {
 router.post("/interviews/start", async (req, res): Promise<void> => {
   const referenceNumber = String(req.body?.referenceNumber || "").trim().toUpperCase();
   const candidateName = String(req.body?.candidateName || "").trim().slice(0, 160);
+  if (req.body?.consent !== true) {
+    res.status(400).json({ error: "Please confirm consent before starting the interview." });
+    return;
+  }
   if (!/^MVA-\d{4}-[A-F0-9]{6}$/.test(referenceNumber)) {
     res.status(400).json({ error: "Enter a valid Work Permit Reference Number (MVA-YYYY-XXXXXX)." });
     return;
