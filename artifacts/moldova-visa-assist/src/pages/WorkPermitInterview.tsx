@@ -28,6 +28,9 @@ export default function WorkPermitInterview() {
   const [cameraError, setCameraError] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  const recordingMimeRef = useRef("video/webm");
   const [session, setSession] = useState<InterviewSession | null>(null);
   const [answers, setAnswers] = useState<string[]>([]);
   const [index, setIndex] = useState(0);
@@ -46,11 +49,38 @@ export default function WorkPermitInterview() {
     recognitionRef.current = null;
   };
 
+  async function finishAndUploadRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) throw new Error("Video/audio recording was not started. Please contact the administrator.");
+    let blob: Blob;
+    if (recorder.state !== "inactive") {
+      blob = await new Promise<Blob>((resolve, reject) => {
+        recorder.addEventListener("stop", () => resolve(new Blob(recordingChunksRef.current, { type: recordingMimeRef.current })), { once: true });
+        recorder.addEventListener("error", () => reject(new Error("The browser could not finish the recording.")), { once: true });
+        try { recorder.stop(); } catch (error) { reject(error); }
+      });
+    } else {
+      blob = new Blob(recordingChunksRef.current, { type: recordingMimeRef.current });
+    }
+    if (!blob.size) throw new Error("No video/audio data was recorded.");
+    if (blob.size > 50 * 1024 * 1024) throw new Error("Recording exceeded 50 MB and could not be uploaded. Please contact the administrator.");
+    const mimeType = (blob.type || recordingMimeRef.current).split(";")[0];
+    const response = await fetch(`/api/interviews/${session!.interviewId}/recording`, {
+      method: "PUT",
+      headers: { "Content-Type": mimeType, "X-Interview-Token": session!.accessToken },
+      body: blob,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Could not save the video/audio recording.");
+    mediaRecorderRef.current = null;
+  }
+
   async function saveInterview(expired = false) {
     if (!session || saving || closed) return;
     setSaving(true);
     stopMic();
     try {
+      await finishAndUploadRecording();
       const response = await fetch(`/api/interviews/${session.interviewId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -61,11 +91,11 @@ export default function WorkPermitInterview() {
       if (!response.ok) {
         setStatusMessage(expired ? "Time is up. The interview is now closed." : (data.error || "The interview is closed."));
       } else {
-        setStatusMessage(expired ? "Time is up. Your interview has been closed." : "Your interview answers have been submitted.");
+        setStatusMessage(expired ? "Time is up. Your interview and recording have been submitted." : "Your interview and video/audio recording have been submitted.");
       }
-    } catch {
+    } catch (err: any) {
       setClosed(true);
-      setStatusMessage("The interview has closed, but we could not confirm that your answers were saved. Please contact the administrator and provide your Work Permit Reference Number.");
+      setStatusMessage((err?.message || "The recording could not be saved.") + " Please contact the administrator and provide your Work Permit Reference Number.");
     } finally {
       setSaving(false);
     }
@@ -100,6 +130,7 @@ export default function WorkPermitInterview() {
 
   useEffect(() => () => {
     stopMic();
+    mediaRecorderRef.current?.stream.getTracks().forEach(track => track.stop());
     cameraStreamRef.current?.getTracks().forEach(track => track.stop());
   }, []);
 
@@ -144,15 +175,34 @@ export default function WorkPermitInterview() {
       toast({ title: "Identity check required", description: "Enable the camera, confirm your live image, and accept both consent statements before starting.", variant: "destructive" });
       return;
     }
+    if (typeof MediaRecorder === "undefined") {
+      toast({ title: "Recording unavailable", description: "Please use an up-to-date browser that supports video/audio recording.", variant: "destructive" });
+      return;
+    }
     setStarting(true);
+    let recordingStream: MediaStream | null = null;
     try {
+      recordingStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15, max: 15 } },
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      cameraStreamRef.current?.getTracks().forEach(track => track.stop());
+      cameraStreamRef.current = recordingStream;
+      if (videoRef.current) { videoRef.current.srcObject = recordingStream; await videoRef.current.play().catch(() => {}); }
       const response = await fetch("/api/interviews/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ referenceNumber: referenceNumber.trim().toUpperCase(), candidateName, consent: true }),
+        body: JSON.stringify({ referenceNumber: referenceNumber.trim().toUpperCase(), candidateName, consent: true, videoAudioConsent: true }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not start interview");
+      const preferredMime = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find(type => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(recordingStream, { ...(preferredMime ? { mimeType: preferredMime } : {}), videoBitsPerSecond: 450000, audioBitsPerSecond: 64000 });
+      recordingChunksRef.current = [];
+      recordingMimeRef.current = recorder.mimeType || preferredMime || "video/webm";
+      recorder.ondataavailable = event => { if (event.data?.size) recordingChunksRef.current.push(event.data); };
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
       setSession(data);
       setAnswers(Array(data.questions.length).fill(""));
       setIndex(0);
@@ -162,6 +212,8 @@ export default function WorkPermitInterview() {
       timeoutSubmittedRef.current = false;
       setStatusMessage("");
     } catch (err: any) {
+      recordingStream?.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current = null;
       toast({ title: "Unable to start interview", description: err.message || "Please check the reference number.", variant: "destructive" });
     } finally {
       setStarting(false);
@@ -217,7 +269,7 @@ export default function WorkPermitInterview() {
           <p className="mb-3 text-xs font-bold tracking-[.18em] text-emerald-100">AI INTERVIEW · ENGLISH</p>
           <h1 className="mb-4 text-3xl font-bold md:text-4xl">Greenhouse Worker Interview</h1>
           <p className="max-w-2xl text-lg leading-8 text-emerald-50">Enter the Work Permit Reference Number already issued for your application. Answer 10 questions in English within 10 minutes.</p>
-          <div className="mt-5 flex flex-wrap gap-2 text-sm"><span className="rounded-full border border-white/30 px-4 py-2">10 questions</span><span className="rounded-full border border-white/30 px-4 py-2">10-minute limit</span><span className="rounded-full border border-white/30 px-4 py-2">No audio recording saved</span></div>
+          <div className="mt-5 flex flex-wrap gap-2 text-sm"><span className="rounded-full border border-white/30 px-4 py-2">10 questions</span><span className="rounded-full border border-white/30 px-4 py-2">10-minute limit</span><span className="rounded-full border border-white/30 px-4 py-2">Video + audio recorded with consent</span></div>
         </section>
 
         {!session ? (
@@ -228,7 +280,7 @@ export default function WorkPermitInterview() {
             <div className="space-y-2"><label className="text-sm font-semibold" htmlFor="candidateName">Candidate name (optional)</label><Input id="candidateName" value={candidateName} onChange={e => setCandidateName(e.target.value)} placeholder="Enter your name" /></div>
             <div className="space-y-3 rounded-xl border p-4">
               <div className="flex items-center gap-2 font-semibold"><Camera className="h-5 w-5" /> Live camera identity check</div>
-              <p className="text-sm text-muted-foreground">Turn on your camera and check that your own face is visible before starting. The image stays on this device and is not recorded or uploaded.</p>
+              <p className="text-sm text-muted-foreground">Turn on your camera and check that your own face is visible before starting. The preview is not saved during this check. If you start the interview, your video and audio will be recorded and uploaded for authorised admin review, with your consent.</p>
               <video ref={videoRef} autoPlay muted playsInline className="mx-auto aspect-video w-full max-w-md rounded-lg bg-black object-cover" aria-label="Live camera preview" />
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" onClick={enableCamera}><Camera className="mr-2 h-4 w-4" />{cameraReady ? "Restart camera" : "Turn on camera"}</Button>
@@ -239,7 +291,7 @@ export default function WorkPermitInterview() {
               {cameraError && <p role="alert" className="text-sm text-destructive">{cameraError}</p>}
               <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-muted/50 p-3 text-sm leading-6"><input className="mt-1" type="checkbox" checked={identityConsent} onChange={e => setIdentityConsent(e.target.checked)} /><span>I confirm that I am the applicant named on this application and I will personally complete this interview. I understand the camera preview alone cannot conclusively verify my identity.</span></label>
             </div>
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm leading-6"><input className="mt-1" type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} /><span>I understand this is an AI interview. My written/transcribed answers will be saved against my Work Permit Reference Number for admin review. Audio recordings are not saved. This interview does not guarantee a job offer or work permit.</span></label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm leading-6"><input className="mt-1" type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} /><span>I explicitly consent to video and audio recording for the full interview (up to 10 minutes). The recording and my written answers will be securely stored on the server for authorised admin review. I understand the recording may contain my face and voice, and I can decline to proceed if I do not consent. This interview does not guarantee a job offer or work permit.</span></label>
             <Button type="submit" size="lg" className="w-full" disabled={starting || !consent || !identityConsent || !cameraReady || !selfieChecked}>{starting ? "Checking reference number…" : "Start interview"}</Button>
           </form>
         ) : closed ? (
@@ -264,7 +316,7 @@ export default function WorkPermitInterview() {
             <label htmlFor="answer" className="mb-2 block font-semibold">Your answer (English)</label>
             <Textarea id="answer" value={answers[index] || ""} onChange={e => updateAnswer(e.target.value)} disabled={secondsLeft <= 0 || saving} rows={5} maxLength={12000} placeholder="Speak using the microphone or type your answer here…" className="mb-5 text-base" />
             <div className="flex flex-wrap justify-between gap-3"><Button type="button" variant="outline" onClick={goPrevious} disabled={index === 0 || secondsLeft <= 0}>Previous</Button>{index < session.questions.length - 1 ? <Button type="button" onClick={goNext} disabled={secondsLeft <= 0}>Save answer & continue</Button> : <Button type="button" onClick={() => void saveInterview(false)} disabled={saving}>{saving ? "Submitting…" : "Submit interview"}</Button>}</div>
-            <p className="mt-5 text-xs leading-5 text-muted-foreground">Your answers are saved for admin review. The countdown cannot be paused. The interview will close automatically when the time limit ends.</p>
+            <p className="mt-5 text-xs leading-5 text-muted-foreground">Your video, audio, and answers are saved for admin review. The countdown cannot be paused. The interview will close automatically when the time limit ends.</p>
           </section>
         )}
         <p className="mt-6 text-center text-xs text-muted-foreground">Moldova Visa Assist · Interview participation does not guarantee employment or permit approval.</p>

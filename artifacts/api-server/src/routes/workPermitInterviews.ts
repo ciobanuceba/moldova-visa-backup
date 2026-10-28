@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import express, { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin";
@@ -25,8 +25,8 @@ router.get("/interviews/questions", (_req, res) => {
 router.post("/interviews/start", async (req, res): Promise<void> => {
   const referenceNumber = String(req.body?.referenceNumber || "").trim().toUpperCase();
   const candidateName = String(req.body?.candidateName || "").trim().slice(0, 160);
-  if (req.body?.consent !== true) {
-    res.status(400).json({ error: "Please confirm consent before starting the interview." });
+  if (req.body?.consent !== true || req.body?.videoAudioConsent !== true) {
+    res.status(400).json({ error: "Please confirm consent to the interview and its video/audio recording before starting." });
     return;
   }
   if (!/^MVA-\d{4}-[A-F0-9]{6}$/.test(referenceNumber)) {
@@ -59,8 +59,8 @@ router.post("/interviews/start", async (req, res): Promise<void> => {
     const accessToken = randomBytes(24).toString("hex");
     const inserted = await pool.query(
       `INSERT INTO work_permit_interviews
-       (work_permit_id, reference_number, candidate_name, questions, answers, access_token, status, consent, started_at, expires_at)
-       VALUES ($1,$2,$3,$4::jsonb,'[]'::jsonb,$5,'in_progress',TRUE,NOW(),NOW() + INTERVAL '10 minutes')
+       (work_permit_id, reference_number, candidate_name, questions, answers, access_token, status, consent, video_audio_consent, started_at, expires_at)
+       VALUES ($1,$2,$3,$4::jsonb,'[]'::jsonb,$5,'in_progress',TRUE,TRUE,NOW(),NOW() + INTERVAL '10 minutes')
        RETURNING id, started_at, expires_at`,
       [wp.id, referenceNumber, candidateName || [wp.first_name, wp.last_name].filter(Boolean).join(" "), JSON.stringify(QUESTIONS), accessToken]
     );
@@ -77,6 +77,21 @@ router.post("/interviews/start", async (req, res): Promise<void> => {
   } catch (err) {
     res.status(500).json({ error: "Could not start the interview. Please try again later." });
   }
+});
+
+router.put("/interviews/:id/recording", express.raw({ type: ["video/webm", "video/mp4", "video/quicktime"], limit: "50mb" }), async (req: any, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const accessToken = String(req.headers["x-interview-token"] || "");
+  const mimeType = String(req.headers["content-type"] || "").split(";")[0].toLowerCase();
+  const data = req.body;
+  if (!Number.isInteger(id) || id <= 0 || !/^[a-f0-9]{48}$/.test(accessToken) || !Buffer.isBuffer(data) || data.length < 1024 || data.length > 50 * 1024 * 1024 || !["video/webm", "video/mp4", "video/quicktime"].includes(mimeType)) {
+    res.status(400).json({ error: "Invalid or oversized interview recording. Maximum size is 50 MB." }); return;
+  }
+  try {
+    const saved = await pool.query("UPDATE work_permit_interviews SET recording_data = $1, recording_mime_type = $2, recording_size_bytes = $3, recording_status = 'saved' WHERE id = $4 AND access_token = $5 AND video_audio_consent = TRUE AND started_at > NOW() - INTERVAL '15 minutes' RETURNING id", [data, mimeType, data.length, id, accessToken]);
+    if (!saved.rows.length) { res.status(403).json({ error: "Recording could not be associated with this consented interview." }); return; }
+    res.json({ success: true, sizeBytes: data.length });
+  } catch { res.status(500).json({ error: "Could not securely save the interview recording." }); }
 });
 
 router.post("/interviews/:id/progress", async (req, res): Promise<void> => {
@@ -203,11 +218,25 @@ router.delete("/admin/work-permit-interviews/:id", requireAdmin, async (req, res
   }
 });
 
+router.get("/admin/work-permit-interviews/:id/recording", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid interview ID." }); return; }
+  try {
+    const result = await pool.query("SELECT recording_data, recording_mime_type, recording_size_bytes FROM work_permit_interviews WHERE id = $1 AND recording_data IS NOT NULL LIMIT 1", [id]);
+    if (!result.rows.length) { res.status(404).json({ error: "No saved recording is available for this interview." }); return; }
+    res.setHeader("Content-Type", result.rows[0].recording_mime_type || "video/webm");
+    res.setHeader("Content-Length", String(result.rows[0].recording_size_bytes || result.rows[0].recording_data.length));
+    res.setHeader("Content-Disposition", "inline; filename=interview-" + id + ".webm");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.send(result.rows[0].recording_data);
+  } catch { res.status(500).json({ error: "Could not load the interview recording." }); }
+});
+
 router.get("/admin/work-permit-interviews", requireAdmin, async (_req, res): Promise<void> => {
   try {
     const { rows } = await pool.query(
       `SELECT id, work_permit_id, reference_number, candidate_name, questions, answers, status,
-              consent, started_at, expires_at, completed_at, created_at
+              consent, video_audio_consent, recording_status, recording_size_bytes, started_at, expires_at, completed_at, created_at
        FROM work_permit_interviews
        ORDER BY created_at DESC
        LIMIT 500`
