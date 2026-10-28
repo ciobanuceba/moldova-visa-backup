@@ -8,6 +8,7 @@ import { Clock3, Mic, Volume2, ShieldCheck } from "lucide-react";
 
 type InterviewSession = {
   interviewId: number;
+  accessToken: string;
   referenceNumber: string;
   candidateName: string;
   jobTitle: string;
@@ -18,7 +19,7 @@ type InterviewSession = {
 
 export default function WorkPermitInterview() {
   const { toast } = useToast();
-  const [referenceNumber, setReferenceNumber] = useState("");
+  const [referenceNumber, setReferenceNumber] = useState(() => new URLSearchParams(window.location.search).get("reference")?.toUpperCase() || "");
   const [candidateName, setCandidateName] = useState("");
   const [consent, setConsent] = useState(false);
   const [session, setSession] = useState<InterviewSession | null>(null);
