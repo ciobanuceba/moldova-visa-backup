@@ -45,7 +45,7 @@ export default function WorkPermitInterview() {
       const response = await fetch(`/api/interviews/${session.interviewId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, accessToken: session.accessToken }),
       });
       const data = await response.json().catch(() => ({}));
       setClosed(true);
@@ -72,7 +72,7 @@ export default function WorkPermitInterview() {
     tick();
     const handle = window.setInterval(tick, 500);
     return () => window.clearInterval(handle);
-  }, [session, closed]);
+  }, [session, closed, answers]);
 
   useEffect(() => () => stopMic(), []);
 
@@ -186,8 +186,8 @@ export default function WorkPermitInterview() {
             <h2 className="mb-6 text-2xl font-bold leading-snug text-primary md:text-3xl">{session.questions[index]}</h2>
             <div className="mb-5 flex flex-wrap gap-3"><Button type="button" variant="secondary" onClick={readQuestion}><Volume2 className="mr-2 h-4 w-4" />Read question aloud</Button><Button type="button" variant="secondary" onClick={startMic}><Mic className="mr-2 h-4 w-4" />Start microphone</Button><Button type="button" variant="outline" onClick={stopMic}>Stop microphone</Button></div>
             <label htmlFor="answer" className="mb-2 block font-semibold">Your answer (English)</label>
-            <Textarea id="answer" value={answers[index] || ""} onChange={e => updateAnswer(e.target.value)} rows={5} maxLength={12000} placeholder="Speak using the microphone or type your answer here…" className="mb-5 text-base" />
-            <div className="flex flex-wrap justify-between gap-3"><Button type="button" variant="outline" onClick={goPrevious} disabled={index === 0}>Previous</Button>{index < session.questions.length - 1 ? <Button type="button" onClick={goNext}>Save answer & continue</Button> : <Button type="button" onClick={() => void saveInterview(false)} disabled={saving}>{saving ? "Submitting…" : "Submit interview"}</Button>}</div>
+            <Textarea id="answer" value={answers[index] || ""} onChange={e => updateAnswer(e.target.value)} disabled={secondsLeft <= 0 || saving} rows={5} maxLength={12000} placeholder="Speak using the microphone or type your answer here…" className="mb-5 text-base" />
+            <div className="flex flex-wrap justify-between gap-3"><Button type="button" variant="outline" onClick={goPrevious} disabled={index === 0 || secondsLeft <= 0}>Previous</Button>{index < session.questions.length - 1 ? <Button type="button" onClick={goNext} disabled={secondsLeft <= 0}>Save answer & continue</Button> : <Button type="button" onClick={() => void saveInterview(false)} disabled={saving}>{saving ? "Submitting…" : "Submit interview"}</Button>}</div>
             <p className="mt-5 text-xs leading-5 text-muted-foreground">Your answers are saved for admin review. The countdown cannot be paused. The interview will close automatically when the time limit ends.</p>
           </section>
         )}
