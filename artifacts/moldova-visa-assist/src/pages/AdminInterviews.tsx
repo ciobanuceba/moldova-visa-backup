@@ -16,6 +16,9 @@ type InterviewRecord = {
   answers: string[];
   status: string;
   consent: boolean;
+  video_audio_consent: boolean;
+  recording_status: string;
+  recording_size_bytes: number | null;
   started_at: string;
   expires_at: string;
   completed_at: string | null;
@@ -34,6 +37,9 @@ export default function AdminInterviews() {
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessSaving, setAccessSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingLoading, setRecordingLoading] = useState(false);
+  const [recordingError, setRecordingError] = useState("");
 
   async function loadAccess() {
     if (!user || !isAdmin) return;
@@ -105,6 +111,35 @@ export default function AdminInterviews() {
 
   useEffect(() => { void load(); void loadAccess(); }, [user, isAdmin]);
 
+  useEffect(() => {
+    const record = records.find(item => item.id === selected);
+    setRecordingUrl(null);
+    setRecordingError("");
+    if (!record || record.recording_status !== "saved" || !user || !isAdmin) return;
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setRecordingLoading(true);
+    fetch(`/api/admin/work-permit-interviews/${record.id}/recording`, { headers: authHeaders(user.token) })
+      .then(async response => {
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "Could not load recording.");
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setRecordingUrl(objectUrl);
+      })
+      .catch(err => { if (!cancelled) setRecordingError(err.message || "Could not load recording."); })
+      .finally(() => { if (!cancelled) setRecordingLoading(false); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selected, records, user, isAdmin]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return records;
@@ -155,20 +190,29 @@ export default function AdminInterviews() {
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="grid gap-3 text-sm sm:grid-cols-3">
                       <div><span className="text-muted-foreground">Interview ID:</span> {record.id}</div>
-                      <div><span className="text-muted-foreground">Consent:</span> {record.consent ? "Confirmed" : "Not recorded"}</div>
+                      <div><span className="text-muted-foreground">Interview consent:</span> {record.consent ? "Confirmed" : "Not recorded"}</div>
+                      <div><span className="text-muted-foreground">Video/audio consent:</span> {record.video_audio_consent ? "Confirmed" : "Not recorded"}</div>
+                      <div><span className="text-muted-foreground">Recording:</span> {record.recording_status === "saved" ? `Saved (${((record.recording_size_bytes || 0) / (1024 * 1024)).toFixed(1)} MB)` : record.recording_status === "failed" ? "Upload failed" : "Not available"}</div>
                       <div><span className="text-muted-foreground">Completed:</span> {record.completed_at ? new Date(record.completed_at).toLocaleString() : "Not completed"}</div>
                     </div>
                     <Button type="button" variant="destructive" size="sm" onClick={() => void deleteInterview(record)} disabled={deletingId !== null}>
                       <Trash2 className="mr-2 h-4 w-4" />{deletingId === record.id ? "Deleting…" : "Delete Interview"}
                     </Button>
                   </div>
+                  {record.recording_status === "saved" && <section className="mb-6 rounded-lg border p-4">
+                    <h3 className="mb-3 font-semibold">Interview video & audio recording</h3>
+                    {recordingLoading && <p className="text-sm text-muted-foreground">Loading secure recording…</p>}
+                    {recordingError && <p role="alert" className="text-sm text-destructive">{recordingError}</p>}
+                    {recordingUrl && <video className="w-full max-w-3xl rounded-lg bg-black" src={recordingUrl} controls playsInline preload="metadata">Your browser cannot play this recording.</video>}
+                    <p className="mt-2 text-xs text-muted-foreground">Only authorised admins can access this recording. Handle candidate video/audio as confidential personal information.</p>
+                  </section>}
                   <div className="space-y-4">{(Array.isArray(record.questions) ? record.questions : []).map((question, i) => <div key={i} className="rounded-lg bg-muted/40 p-4"><div className="mb-2 font-semibold">{i + 1}. {question}</div><p className="whitespace-pre-wrap text-sm leading-6">{Array.isArray(record.answers) && record.answers[i] ? record.answers[i] : "No answer provided."}</p></div>)}</div>
                 </div>}
               </section>;
             })}
           </div>
         )}
-        <p className="mt-6 flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-4 w-4" />Candidate answers are stored against their Work Permit Reference Number. Audio is not recorded or stored.</p>
+        <p className="mt-6 flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-4 w-4" />Candidate answers and consented video/audio recordings are stored against the Work Permit Reference Number for authorised admin review.</p>
       </div>
     </div>
   );
