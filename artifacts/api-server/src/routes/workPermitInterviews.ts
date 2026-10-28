@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { randomBytes } from "node:crypto";
 import { pool } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin";
 
@@ -38,15 +39,17 @@ router.post("/interviews/start", async (req, res): Promise<void> => {
       return;
     }
     const wp = permit.rows[0];
+    const accessToken = randomBytes(24).toString("hex");
     const inserted = await pool.query(
       `INSERT INTO work_permit_interviews
-       (work_permit_id, reference_number, candidate_name, questions, answers, status, consent, started_at, expires_at)
-       VALUES ($1,$2,$3,$4::jsonb,'[]'::jsonb,'in_progress',TRUE,NOW(),NOW() + INTERVAL '10 minutes')
+       (work_permit_id, reference_number, candidate_name, questions, answers, access_token, status, consent, started_at, expires_at)
+       VALUES ($1,$2,$3,$4::jsonb,'[]'::jsonb,$5,'in_progress',TRUE,NOW(),NOW() + INTERVAL '10 minutes')
        RETURNING id, started_at, expires_at`,
-      [wp.id, referenceNumber, candidateName || [wp.first_name, wp.last_name].filter(Boolean).join(" "), JSON.stringify(QUESTIONS)]
+      [wp.id, referenceNumber, candidateName || [wp.first_name, wp.last_name].filter(Boolean).join(" "), JSON.stringify(QUESTIONS), accessToken]
     );
     res.status(201).json({
       interviewId: inserted.rows[0].id,
+      accessToken,
       referenceNumber,
       candidateName: candidateName || [wp.first_name, wp.last_name].filter(Boolean).join(" "),
       jobTitle: wp.job_title || "Greenhouse Worker",
@@ -62,7 +65,8 @@ router.post("/interviews/start", async (req, res): Promise<void> => {
 router.post("/interviews/:id/submit", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const answers = req.body?.answers;
-  if (!Number.isInteger(id) || id <= 0 || !Array.isArray(answers) || answers.length !== QUESTIONS.length ||
+  const accessToken = String(req.body?.accessToken || "");
+  if (!Number.isInteger(id) || id <= 0 || !/^[a-f0-9]{48}$/.test(accessToken) || !Array.isArray(answers) || answers.length !== QUESTIONS.length ||
       answers.some((a: unknown) => typeof a !== "string" || a.length > 12000)) {
     res.status(400).json({ error: "Invalid interview answers." });
     return;
@@ -73,12 +77,13 @@ router.post("/interviews/:id/submit", async (req, res): Promise<void> => {
        SET answers = $1::jsonb,
            status = CASE WHEN expires_at <= NOW() THEN 'time_expired' ELSE 'completed' END,
            completed_at = NOW()
-       WHERE id = $2 AND status = 'in_progress' AND completed_at IS NULL
+       WHERE id = $2 AND access_token = $3 AND status = 'in_progress' AND completed_at IS NULL AND expires_at >= NOW()
        RETURNING reference_number, status, expires_at`,
-      [JSON.stringify(answers.map((a: string) => a.trim())), id]
+      [JSON.stringify(answers.map((a: string) => a.trim())), id, accessToken]
     );
     if (!result.rows.length) {
-      res.status(409).json({ error: "This interview is already closed or could not be found. Answers can no longer be changed." });
+      await pool.query("UPDATE work_permit_interviews SET status = 'time_expired', completed_at = NOW() WHERE id = $1 AND access_token = $2 AND status = 'in_progress' AND expires_at < NOW()", [id, accessToken]);
+      res.status(409).json({ error: "This interview is already closed, expired, or could not be found. Answers can no longer be changed." });
       return;
     }
     res.json({ success: true, referenceNumber: result.rows[0].reference_number, status: result.rows[0].status });
