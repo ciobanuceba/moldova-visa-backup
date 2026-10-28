@@ -35,9 +35,10 @@ const questions=[
 "Why would you like to work in Moldova, and what do you hope to achieve in this job?",
 "Please explain what you understand about the greenhouse worker's duties, following the supervisor's instructions, and respecting workplace rules."
 ];
-let index=0,answers=Array(questions.length).fill(""),recognition=null,startedAt=null,timerHandle=null,secondsLeft=600,finished=false;
-const referenceNumber="MVA-GH-"+new Date().toISOString().slice(0,10).replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7).toUpperCase();\n$("introRef").textContent=referenceNumber;$("liveRef").textContent=referenceNumber;$("resultRef").textContent=referenceNumber;
 const $=id=>document.getElementById(id);
+let index=0,answers=Array(questions.length).fill(""),recognition=null,startedAt=null,timerHandle=null,secondsLeft=600,finished=false;
+const referenceNumber="MVA-GH-"+new Date().toISOString().slice(0,10).replace(/-/g,"")+"-"+Math.random().toString(36).slice(2,7).toUpperCase();
+$("introRef").textContent=referenceNumber;$("liveRef").textContent=referenceNumber;$("resultRef").textContent=referenceNumber;
 const supported=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
 $("startBtn").addEventListener("click",()=>{if(!$("consent").checked||finished)return;startedAt=Date.now();secondsLeft=600;$("intro").classList.add("hidden");$("interview").classList.remove("hidden");showQuestion();updateTimer();timerHandle=setInterval(()=>{if(finished){clearInterval(timerHandle);return;}secondsLeft--;updateTimer();if(secondsLeft<=0){answers[index]=$("answerBox").value.trim();finish(true);}},1000);});
 $("consent").addEventListener("change",e=>$("startBtn").disabled=!e.target.checked);
