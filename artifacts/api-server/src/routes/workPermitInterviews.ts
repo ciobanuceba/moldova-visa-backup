@@ -99,7 +99,7 @@ router.post("/interviews/:id/submit", async (req, res): Promise<void> => {
     const result = await pool.query(
       `UPDATE work_permit_interviews
        SET answers = $1::jsonb,
-           status = CASE WHEN expires_at <= NOW() THEN 'time_expired' ELSE 'completed' END,
+           status = 'completed',
            completed_at = NOW()
        WHERE id = $2 AND access_token = $3 AND status = 'in_progress' AND completed_at IS NULL AND expires_at >= NOW()
        RETURNING reference_number, status, expires_at`,
