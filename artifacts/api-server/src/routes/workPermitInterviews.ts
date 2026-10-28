@@ -182,6 +182,27 @@ router.post("/admin/interviews/access", requireAdmin, async (req, res): Promise<
   }
 });
 
+router.delete("/admin/work-permit-interviews/:id", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid interview ID." });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      "DELETE FROM work_permit_interviews WHERE id = $1 RETURNING id",
+      [id]
+    );
+    if (!result.rows.length) {
+      res.status(404).json({ error: "Interview record not found. It may already have been deleted." });
+      return;
+    }
+    res.json({ success: true, deletedInterviewId: result.rows[0].id });
+  } catch {
+    res.status(500).json({ error: "Could not delete interview record." });
+  }
+});
+
 router.get("/admin/work-permit-interviews", requireAdmin, async (_req, res): Promise<void> => {
   try {
     const { rows } = await pool.query(
