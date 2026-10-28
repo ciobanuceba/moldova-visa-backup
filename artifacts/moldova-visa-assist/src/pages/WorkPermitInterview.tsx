@@ -32,6 +32,7 @@ export default function WorkPermitInterview() {
   const [statusMessage, setStatusMessage] = useState("");
   const recognitionRef = useRef<any>(null);
   const answersRef = useRef<string[]>([]);
+  const timeoutSubmittedRef = useRef(false);
   const deadlineRef = useRef<number>(0);
 
   const stopMic = () => {
@@ -47,7 +48,7 @@ export default function WorkPermitInterview() {
       const response = await fetch(`/api/interviews/${session.interviewId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers, accessToken: session.accessToken }),
+        body: JSON.stringify({ answers: answersRef.current, accessToken: session.accessToken }),
       });
       const data = await response.json().catch(() => ({}));
       setClosed(true);
@@ -69,12 +70,12 @@ export default function WorkPermitInterview() {
     const tick = () => {
       const left = Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000));
       setSecondsLeft(left);
-      if (left <= 0) void saveInterview(true);
+      if (left <= 0 && !timeoutSubmittedRef.current) { timeoutSubmittedRef.current = true; void saveInterview(true); }
     };
     tick();
     const handle = window.setInterval(tick, 500);
     return () => window.clearInterval(handle);
-  }, [session, closed, answers]);
+  }, [session, closed]);
 
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
@@ -114,6 +115,7 @@ export default function WorkPermitInterview() {
       setSecondsLeft(data.durationSeconds);
       deadlineRef.current = Date.now() + data.durationSeconds * 1000;
       setClosed(false);
+      timeoutSubmittedRef.current = false;
       setStatusMessage("");
     } catch (err: any) {
       toast({ title: "Unable to start interview", description: err.message || "Please check the reference number.", variant: "destructive" });
