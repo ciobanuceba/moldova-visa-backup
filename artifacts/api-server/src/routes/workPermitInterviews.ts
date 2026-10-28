@@ -155,7 +155,7 @@ router.get("/admin/interviews/access", requireAdmin, async (_req, res): Promise<
 router.post("/admin/interviews/access", requireAdmin, async (req, res): Promise<void> => {
   const referenceNumber = String(req.body?.referenceNumber || "").trim().toUpperCase();
   const enabled = req.body?.enabled;
-  if (!/^MVA-\\d{4}-[A-F0-9]{6}$/.test(referenceNumber) || typeof enabled !== "boolean") {
+  if (!/^MVA-\d{4}-[A-F0-9]{6}$/.test(referenceNumber) || typeof enabled !== "boolean") {
     res.status(400).json({ error: "Enter a valid reference number and choose whether interviews are enabled." });
     return;
   }
