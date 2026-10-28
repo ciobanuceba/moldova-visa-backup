@@ -155,7 +155,7 @@ router.get("/admin/interviews/access", requireAdmin, async (_req, res): Promise<
 router.post("/admin/interviews/access", requireAdmin, async (req, res): Promise<void> => {
   const referenceNumber = String(req.body?.referenceNumber || "").trim().toUpperCase();
   const enabled = req.body?.enabled;
-  if (!/^MVA-\\d{4}-[A-F0-9]{6}$/.test(referenceNumber) || typeof enabled !== "boolean") {
+  if (!/^MVA-\d{4}-[A-F0-9]{6}$/.test(referenceNumber) || typeof enabled !== "boolean") {
     res.status(400).json({ error: "Enter a valid reference number and choose whether interviews are enabled." });
     return;
   }
@@ -179,6 +179,27 @@ router.post("/admin/interviews/access", requireAdmin, async (req, res): Promise<
     res.json({ referenceNumber: result.rows[0].reference_number, enabled: result.rows[0].enabled, updatedAt: result.rows[0].updated_at });
   } catch {
     res.status(500).json({ error: "Could not update interview access settings." });
+  }
+});
+
+router.delete("/admin/work-permit-interviews/:id", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid interview ID." });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      "DELETE FROM work_permit_interviews WHERE id = $1 RETURNING id",
+      [id]
+    );
+    if (!result.rows.length) {
+      res.status(404).json({ error: "Interview record not found. It may already have been deleted." });
+      return;
+    }
+    res.json({ success: true, deletedInterviewId: result.rows[0].id });
+  } catch {
+    res.status(500).json({ error: "Could not delete interview record." });
   }
 });
 
