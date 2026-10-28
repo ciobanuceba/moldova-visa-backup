@@ -326,10 +326,10 @@ export default function Admin() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="container mx-auto px-4 md:px-8 py-12">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-serif font-bold text-primary">Admin Dashboard</h1>
-        <Button variant="outline" size="sm" onClick={() => { logout(); navigate("/"); }}>
+    <div className="container mx-auto w-full min-w-0 px-2 sm:px-4 md:px-8 py-5 md:py-12">
+      <div className="mb-6 flex flex-col items-stretch justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
+        <h1 className="text-2xl font-serif font-bold text-primary sm:text-3xl">Admin Dashboard</h1>
+        <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => { logout(); navigate("/"); }}>
           <LogOut className="w-4 h-4 mr-2" /> Sign Out
         </Button>
       </div>
@@ -340,13 +340,13 @@ export default function Admin() {
         if (v === "payments") loadPayments();
         if (v === "statistics") loadStats();
       }}>
-        <TabsList className="mb-8 flex-wrap h-auto">
-          <TabsTrigger value="statistics"><BarChart2 className="w-4 h-4 mr-1.5" />Statistics</TabsTrigger>
-          <TabsTrigger value="applications">Applications</TabsTrigger>
-          <TabsTrigger value="work-permits">Work Permits</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="jobs">Manage Jobs</TabsTrigger>
-          <TabsTrigger value="create">Post New Job</TabsTrigger>
+        <TabsList className="mb-6 grid h-auto w-full grid-cols-2 items-stretch justify-stretch gap-1 p-1 sm:mb-8 sm:flex sm:flex-wrap sm:justify-start">
+          <TabsTrigger value="statistics" className="min-w-0 whitespace-normal px-2 py-2 text-xs leading-tight sm:px-3 sm:text-sm"><BarChart2 className="mr-1 h-4 w-4 shrink-0" />Statistics</TabsTrigger>
+          <TabsTrigger value="applications" className="min-w-0 whitespace-normal px-2 py-2 text-xs leading-tight sm:px-3 sm:text-sm">Applications</TabsTrigger>
+          <TabsTrigger value="work-permits" className="min-w-0 whitespace-normal px-2 py-2 text-xs leading-tight sm:px-3 sm:text-sm">Work Permits</TabsTrigger>
+          <TabsTrigger value="payments" className="min-w-0 whitespace-normal px-2 py-2 text-xs leading-tight sm:px-3 sm:text-sm">Payments</TabsTrigger>
+          <TabsTrigger value="jobs" className="min-w-0 whitespace-normal px-2 py-2 text-xs leading-tight sm:px-3 sm:text-sm">Manage Jobs</TabsTrigger>
+          <TabsTrigger value="create" className="min-w-0 whitespace-normal px-2 py-2 text-xs leading-tight sm:px-3 sm:text-sm">Post New Job</TabsTrigger>
         </TabsList>
 
         {/* ── Statistics Tab ────────────────────────────────────────────── */}
