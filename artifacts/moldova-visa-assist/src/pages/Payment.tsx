@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { CreditCard, FileText, User, Loader2, ShieldCheck } from "lucide-react";
+import { CreditCard, FileText, User, Loader2, ShieldCheck, Copy, Check, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+
+const NAGAD_PAYMENT_NUMBER = "9856 0012 3459 2073";
 
 export default function Payment() {
   const { toast } = useToast();
@@ -11,6 +13,18 @@ export default function Payment() {
   const [fileNumber, setFileNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function copyNagadNumber() {
+    try {
+      await navigator.clipboard.writeText(NAGAD_PAYMENT_NUMBER.replace(/\s/g, ""));
+      setCopied(true);
+      toast({ title: "Nagad number copied" });
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast({ title: "Could not copy number", description: "Please copy the number manually.", variant: "destructive" });
+    }
+  }
 
   async function startPayment(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +67,22 @@ export default function Payment() {
           </div>
         </div>
         <form onSubmit={startPayment} className="bg-card border border-t-0 rounded-b-2xl shadow-sm p-6 md:p-8 space-y-6">
+          <section className="rounded-xl border border-orange-200 bg-orange-50/70 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-foreground">
+              <Smartphone className="w-5 h-5 text-orange-600" />
+              <h2 className="font-semibold">Nagad Payment</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">Nagad payment number</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <code className="text-lg font-bold tracking-wide text-foreground">{NAGAD_PAYMENT_NUMBER}</code>
+              <Button type="button" variant="outline" size="sm" onClick={copyNagadNumber} className="shrink-0">
+                {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                {copied ? "Copied" : "Copy Number"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Before sending, verify the recipient details shown in your Nagad app.</p>
+          </section>
+
           <div className="grid gap-2"><Label htmlFor="payment-name"><User className="w-4 h-4 inline mr-1" /> Name</Label><Input id="payment-name" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" autoComplete="name" /></div>
           <div className="grid gap-2"><Label htmlFor="payment-file"><FileText className="w-4 h-4 inline mr-1" /> File Number</Label><Input id="payment-file" value={fileNumber} onChange={e => setFileNumber(e.target.value)} placeholder="e.g. MVA-2026-601212" /></div>
           <div className="grid gap-2"><Label htmlFor="payment-amount">Payment Amount (EUR)</Label><Input id="payment-amount" type="number" min="1" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Enter the amount" inputMode="decimal" /></div>
