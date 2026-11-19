@@ -61,6 +61,8 @@ export async function runMigrations(): Promise<void> {
       amount_bdt INTEGER NOT NULL DEFAULT 3000 CHECK (amount_bdt = 3000),
       status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
       admin_note TEXT,
+      download_token TEXT,
+      download_token_expires_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       reviewed_at TIMESTAMPTZ
     );`);
