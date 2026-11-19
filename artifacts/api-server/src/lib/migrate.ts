@@ -53,5 +53,20 @@ export async function runMigrations(): Promise<void> {
     await client.query(`INSERT INTO interview_access_settings (setting_key, reference_number, enabled)
       VALUES ('primary', 'MVA-2026-69E95F', TRUE)
       ON CONFLICT (setting_key) DO NOTHING;`);
+    await client.query(`CREATE TABLE IF NOT EXISTS contract_pdf_orders (
+      id SERIAL PRIMARY KEY,
+      customer_name TEXT NOT NULL,
+      customer_email TEXT NOT NULL,
+      nagad_transaction_id TEXT NOT NULL UNIQUE,
+      amount_bdt INTEGER NOT NULL DEFAULT 3000 CHECK (amount_bdt = 3000),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+      admin_note TEXT,
+      download_token TEXT,
+      download_token_expires_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reviewed_at TIMESTAMPTZ
+    );`);
+    await client.query(`CREATE INDEX IF NOT EXISTS contract_pdf_orders_status_created_idx ON contract_pdf_orders(status, created_at DESC);`);
+
   } finally { client.release(); }
 }
