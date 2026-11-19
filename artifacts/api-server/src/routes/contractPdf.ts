@@ -48,6 +48,20 @@ router.patch("/admin/contract-pdf/orders/:id", requireAdmin, async (req, res): P
   res.json({ success: true, order: rows[0] });
 });
 
+
+// Customer may check only their own order using order ID and email.
+router.get("/contract-pdf/orders/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const email = String(req.query.email || "").trim().toLowerCase();
+  if (!Number.isInteger(id) || id < 1 || !email) { res.status(400).json({ error: "Order ID and email are required." }); return; }
+  const { rows } = await pool.query(
+    `SELECT id, status, amount_bdt, admin_note FROM contract_pdf_orders WHERE id = $1 AND customer_email = $2`,
+    [id, email]
+  );
+  if (!rows.length) { res.status(404).json({ error: "Order not found." }); return; }
+  res.json(rows[0]);
+});
+
 // Approved orders only receive a short-lived, single-use download token.
 router.post("/contract-pdf/orders/:id/download-token", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
