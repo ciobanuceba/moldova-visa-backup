@@ -1,13 +1,10 @@
 import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin";
-import fs from "node:fs";
-import path from "node:path";
 import { randomBytes } from "node:crypto";
 
 const router = Router();
 const PRICE_BDT = 3000;
-const PDF_PATH = path.resolve(process.cwd(), "private-assets/Amit_Mondal_Employment_Contract.pdf");
 
 // Public: submit Nagad transaction for the fixed-price contract PDF.
 router.post("/contract-pdf/orders", async (req, res): Promise<void> => {
@@ -84,10 +81,16 @@ router.get("/contract-pdf/download/:token", async (req, res): Promise<void> => {
      RETURNING id`, [token]
   );
   if (!rows.length) { res.status(403).json({ error: "This download link is invalid or expired." }); return; }
-  if (!fs.existsSync(PDF_PATH)) { res.status(503).json({ error: "The document is temporarily unavailable." }); return; }
+  const encodedPdf = process.env.CONTRACT_PDF_BASE64;
+  if (!encodedPdf) { res.status(503).json({ error: "The document is temporarily unavailable." }); return; }
+  const pdfBuffer = Buffer.from(encodedPdf, "base64");
+  if (pdfBuffer.length < 8 || pdfBuffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    res.status(503).json({ error: "The document is temporarily unavailable." }); return;
+  }
   res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Length", String(pdfBuffer.length));
   res.setHeader("Content-Disposition", 'attachment; filename="Employment-Contract.pdf"');
   res.setHeader("Cache-Control", "no-store");
-  fs.createReadStream(PDF_PATH).pipe(res);
+  res.end(pdfBuffer);
 });
 export default router;
