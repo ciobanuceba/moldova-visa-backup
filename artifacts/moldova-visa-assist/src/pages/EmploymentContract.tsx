@@ -1,11 +1,12 @@
 import { useState } from "react";
 
 const NAGAD_NUMBER = "9856 0012 3459 2073";
-type Order = { id: number; status: "pending" | "approved" | "rejected"; amount_bdt: number; admin_note?: string | null };
+type Order = { id: number; status: "pending" | "approved" | "rejected"; amount_bdt: number; admin_note?: string | null; reference_number?: string | null };
 
 export default function EmploymentContract() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [referenceNumber, setReferenceNumber] = useState("");
   const [transactionId, setTransactionId] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
@@ -14,7 +15,7 @@ export default function EmploymentContract() {
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError("");
     try {
-      const r = await fetch("/api/contract-pdf/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, transactionId }) });
+      const r = await fetch("/api/contract-pdf/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, referenceNumber, transactionId }) });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || "Could not submit your payment.");
       const check = await fetch(`/api/contract-pdf/orders/${data.order.id}?email=${encodeURIComponent(email)}`);
@@ -49,14 +50,15 @@ export default function EmploymentContract() {
       {!order ? <form onSubmit={submit} className="space-y-4">
         <div><label className="mb-1 block text-sm font-medium" htmlFor="contract-name">Full Name</label><input id="contract-name" required maxLength={160} value={name} onChange={e=>setName(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2" /></div>
         <div><label className="mb-1 block text-sm font-medium" htmlFor="contract-email">Email Address</label><input id="contract-email" type="email" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2" /></div>
+        <div><label className="mb-1 block text-sm font-medium" htmlFor="contract-reference">Work Permit Reference Number</label><input id="contract-reference" required maxLength={40} value={referenceNumber} onChange={e=>setReferenceNumber(e.target.value.toUpperCase())} placeholder="MVA-2026-XXXXXX" className="w-full rounded-md border bg-background px-3 py-2" /></div>
         <div><label className="mb-1 block text-sm font-medium" htmlFor="contract-txn">Nagad Transaction ID</label><input id="contract-txn" required maxLength={80} value={transactionId} onChange={e=>setTransactionId(e.target.value)} className="w-full rounded-md border bg-background px-3 py-2" /></div>
         <button disabled={busy} className="w-full rounded-md bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-60">{busy ? "Submitting..." : "Submit Payment for Review"}</button>
-      </form> : <div className="space-y-3 rounded-xl border p-4"><p className="font-semibold">Order #{order.id}</p><p className="text-sm">Payment status: <strong className="capitalize">{order.status.replace("_"," ")}</strong></p>
+      </form> : <div className="space-y-3 rounded-xl border p-4"><p className="font-semibold">Order #{order.id}</p><p className="text-sm">Reference Number: <strong>{order.reference_number || "Not linked"}</strong></p><p className="text-sm">Payment status: <strong className="capitalize">{order.status.replace("_"," ")}</strong></p>
         {order.status === "approved" ? <button disabled={busy} onClick={download} className="w-full rounded-md bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-60">Download Employment Contract PDF</button> : <button disabled={busy} onClick={checkStatus} className="w-full rounded-md border px-4 py-3 font-semibold disabled:opacity-60">{busy ? "Checking..." : "Check Payment Status"}</button>}
         {order.status === "pending" && <p className="text-sm text-muted-foreground">Your payment is awaiting admin verification. Please check again later.</p>}
         {order.status === "rejected" && <p className="text-sm text-destructive">Payment could not be approved. {order.admin_note || "Please contact support."}</p>}
       </div>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <p className="text-xs text-muted-foreground">The document download is enabled only after an administrator approves your payment. Do not share your Transaction ID with anyone.</p>
+      <p className="text-xs text-muted-foreground">The document download is enabled only after an administrator approves your payment. The reference number and email must match your work permit record.</p>
     </div></div></div>;
 }
