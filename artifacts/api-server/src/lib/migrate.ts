@@ -67,6 +67,8 @@ export async function runMigrations(): Promise<void> {
       reviewed_at TIMESTAMPTZ
     );`);
     await client.query(`CREATE INDEX IF NOT EXISTS contract_pdf_orders_status_created_idx ON contract_pdf_orders(status, created_at DESC);`);
+    await client.query(`ALTER TABLE contract_pdf_orders ADD COLUMN IF NOT EXISTS reference_number TEXT REFERENCES work_permits(reference_number) ON DELETE SET NULL;`);
+    await client.query(`CREATE TABLE IF NOT EXISTS contract_pdf_documents (reference_number TEXT PRIMARY KEY REFERENCES work_permits(reference_number) ON DELETE CASCADE, file_name TEXT NOT NULL DEFAULT 'Employment-Contract.pdf', pdf_data BYTEA NOT NULL, uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
 
   } finally { client.release(); }
 }
