@@ -19,7 +19,7 @@ export default function AdminManual() {
   const [, navigate] = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobId, setJobId] = useState("");
-  const [offer, setOffer] = useState({ firstName: "", lastName: "", email: "", phone: "", nationality: "", dateOfBirth: "", passportNumber: "", availableFrom: "", notes: "" });
+  const [offer, setOffer] = useState({ firstName: "", lastName: "", email: "", phone: "", nationality: "", dateOfBirth: "", passportNumber: "", availableFrom: "", employerName: "", notes: "" });
   const [permit, setPermit] = useState(initialPermit);
   const [offerBusy, setOfferBusy] = useState(false);
   const [permitBusy, setPermitBusy] = useState(false);
@@ -53,12 +53,12 @@ export default function AdminManual() {
       if (!create.ok) throw new Error(data.error || "Could not create application");
       const approve = await fetch(`/api/admin/applications/${data.id}/approve`, {
         method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
-        body: JSON.stringify({ notes: offer.notes || "Manual Job Offer created by admin." }),
+        body: JSON.stringify({ notes: offer.notes || "Manual Job Offer created by admin.", employerName: offer.employerName }),
       });
       const approved = await approve.json().catch(() => ({}));
       if (!approve.ok) throw new Error(approved.error || "Application saved but offer could not be approved");
       setMessage(`Manual Job Offer created and sent. Reference: ${data.referenceNumber}`);
-      setOffer({ firstName: "", lastName: "", email: "", phone: "", nationality: "", dateOfBirth: "", passportNumber: "", availableFrom: "", notes: "" });
+      setOffer({ firstName: "", lastName: "", email: "", phone: "", nationality: "", dateOfBirth: "", passportNumber: "", availableFrom: "", employerName: "", notes: "" });
     } catch (err) { setMessage(err instanceof Error ? err.message : "Manual Job Offer failed"); }
     finally { setOfferBusy(false); }
   }
@@ -80,6 +80,7 @@ export default function AdminManual() {
           salary: job.salary,
           startDate: offer.availableFrom || undefined,
           adminNotes: offer.notes || "Manual Job Offer created by admin.",
+          employerName: offer.employerName,
           email: offer.email || undefined,
           phone: offer.phone || undefined,
           nationality: offer.nationality || undefined,
@@ -126,7 +127,7 @@ export default function AdminManual() {
     finally { setPermitBusy(false); }
   }
 
-  const offerFields: [keyof typeof offer, string][] = [["firstName","First name"],["lastName","Last name"],["email","Email"],["phone","Phone"],["nationality","Nationality"],["dateOfBirth","Date of birth"],["passportNumber","Passport number"],["availableFrom","Start date"]];
+  const offerFields: [keyof typeof offer, string][] = [["firstName","First name"],["lastName","Last name"],["email","Email"],["phone","Phone"],["nationality","Nationality"],["dateOfBirth","Date of birth"],["passportNumber","Passport number"],["availableFrom","Start date"],["employerName","Employer company name"]];
   const permitFields: [keyof typeof permit, string][] = Object.keys(initialPermit).map(k => [k as keyof typeof permit, k.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase())]);
 
   return (
@@ -140,7 +141,7 @@ export default function AdminManual() {
 
         <section className="bg-card border rounded-xl p-6">
           <h2 className="text-xl font-bold">Manual Job Offer</h2>
-          <p className="text-sm text-muted-foreground mb-4">Creates an application and immediately uses the existing Approve → PDF → email workflow.</p>
+          <p className="text-sm text-muted-foreground mb-4">Enter the actual hiring company. This name will appear as Employer on the Job Offer PDF.</p>
           <form onSubmit={createManualOffer} className="grid gap-4 sm:grid-cols-2">
             <select value={jobId} onChange={e => setJobId(e.target.value)} className="h-10 rounded-md border bg-background px-3 sm:col-span-2"><option value="">Select job</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.title} — {j.location} — {j.salary}</option>)}</select>
             {offerFields.map(([key, label]) => <Input key={key} required={key !== "passportNumber" && key !== "nationality"} placeholder={label} value={offer[key]} onChange={e => setOfferField(key, e.target.value)} />)}
