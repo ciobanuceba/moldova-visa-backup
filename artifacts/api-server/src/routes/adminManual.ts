@@ -65,7 +65,7 @@ router.post("/admin/manual/old-job-offers/:id/download", async (req, res): Promi
       salary: record.salary,
       startDate: record.start_date || undefined,
       employerName: record.employer_name || "MOLDOVA VISA ASSIST SRL",
-      adminNotes: [record.admin_notes, `Historical reference number: ${record.reference_number}`].filter(Boolean).join("\\n"),
+      adminNotes: record.admin_notes || undefined,
       referenceNumber: record.reference_number,
       applicationDate: new Date().toISOString(),
     });
