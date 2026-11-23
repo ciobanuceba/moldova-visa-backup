@@ -196,7 +196,8 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
       ["Salary Package",data.salary],
       ...(data.passportNumber?.trim()?[["Passport Number",data.passportNumber.trim()] as [string,string]]:[]),
       ...(data.employerName?[["Employer",data.employerName] as [string,string]]:[]),
-      ...(data.startDate?[["Proposed Start Date",data.startDate] as [string,string]]:[]),
+      ...(data.startDate?[["Proposed Start Date",fmtOfferDate(data.startDate) ?? data.startDate] as [string,string]]:[]),
+      ...(data.referenceNumber?[["Reference Number",data.referenceNumber] as [string,string]]:[]),
     ];
     const detailRows=details.length;
     const rowH=28;
@@ -216,11 +217,15 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
     y += boxH+40;
 
     if(data.adminNotes && data.adminNotes.trim() !== "Manual Job Offer created by admin."){
-      doc.roundedRect(ML,y,CW,54,6).fill(PALE);
+      const noteText = data.adminNotes.trim();
+      doc.font("Regular").fontSize(9.5);
+      const noteTextHeight = doc.heightOfString(noteText,{width:CW-32,lineGap:2});
+      const noteBoxHeight = Math.max(54,noteTextHeight+38);
+      doc.roundedRect(ML,y,CW,noteBoxHeight,6).fill(PALE);
       doc.roundedRect(ML,y-11,160,30,6).fill(BLUE);
       doc.font("Bold").fontSize(11).fillColor("#ffffff").text("Additional Notes:",ML+10,y-3,{width:140});
-      doc.font("Regular").fontSize(9.5).fillColor(TEXT).text(data.adminNotes,ML+16,y+18,{width:CW-32});
-      y += 82;
+      doc.font("Regular").fontSize(9.5).fillColor(TEXT).text(noteText,ML+16,y+18,{width:CW-32,lineGap:2});
+      y += noteBoxHeight+24;
     }
 
     doc.font("Regular").fontSize(10.5).fillColor(TEXT)
@@ -228,27 +233,30 @@ export async function generateOfferLetterPdf(data: OfferLetterData): Promise<Buf
         "This offer is contingent upon the successful completion of all visa, work permit, and pre-employment requirements. Moldova Visa Assist will guide you through each step of the process.",
         ML,y,{width:CW,lineGap:4}
       );
-    y=doc.y+22;
+    y=doc.y+16;
 
     doc.text(
       "Please confirm your acceptance of this offer by replying to this email within 5 business days.",
       ML,y,{width:CW,lineGap:3}
     );
-    y=doc.y+22;
+    y=doc.y+16;
 
     doc.text("Congratulations and welcome to the team!",ML,y,{width:CW});
-    y=doc.y+28;
+    y=doc.y+20;
 
-    // Closing/contact block.
+    // Closing/contact block. Keep all text safely above the fixed footer.
+    const footerTop = PH-70;
+    const closingHeight = 69;
+    if (y+closingHeight > footerTop-16) y = footerTop-closingHeight-16;
     doc.font("Bold").fontSize(11).fillColor(NAVY).text("Moldova Visa Assist SRL",ML,y);
-    doc.font("Regular").fontSize(9.5).fillColor(TEXT).text("Recruitment & Visa Assistance Team",ML,y+18);
-    doc.text("ciobanuceban@gmail.com",ML,y+35);
+    doc.font("Regular").fontSize(9.5).fillColor(TEXT).text("Recruitment & Visa Assistance Team",ML,y+16);
+    doc.text("ciobanuceban@gmail.com",ML,y+31);
     doc.font("Regular").fontSize(8.8).fillColor(BLUE)
-      .text("https://moldova-visa-assist.onrender.com/",ML,y+51);
+      .text("https://moldova-visa-assist.onrender.com/",ML,y+46);
 
     // Decorative company branding seal only; not a government/immigration seal.
     const sealX=452;
-    const sealY=Math.min(y+32,715);
+    const sealY=Math.min(y+32,footerTop-48);
     doc.save();
     doc.circle(sealX,sealY,43).lineWidth(1.6).strokeColor(BLUE).stroke();
     doc.circle(sealX,sealY,36).lineWidth(1).strokeColor(GOLD).stroke();
