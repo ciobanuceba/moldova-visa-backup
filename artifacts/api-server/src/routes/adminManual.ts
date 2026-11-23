@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { db, pool, workPermitsTable } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { generateOfferLetterPdf } from "../lib/pdf";
+import { sendEmail } from "../lib/email";
 
 const router: IRouter = Router();
 router.use("/admin/manual", requireAdmin);
@@ -25,6 +26,61 @@ router.get("/admin/manual/old-job-offers", async (_req, res): Promise<void> => {
   } catch (err) {
     console.error("Historical Job Offer list failed", err);
     res.status(500).json({ error: "Could not load old Job Offer records" });
+  }
+});
+
+router.get("/admin/manual/old-job-offers/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid old Job Offer record ID" }); return; }
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, reference_number, applicant_name, job_title, location, salary, employer_name, employer_country, start_date, contract_duration, admin_notes, created_at FROM old_job_offers WHERE id = $1",
+      [id]
+    );
+    if (!rows.length) { res.status(404).json({ error: "Old Job Offer record not found" }); return; }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Historical Job Offer lookup failed", err);
+    res.status(500).json({ error: "Could not load old Job Offer record" });
+  }
+});
+
+// Create a PDF from a saved historical record, email it only to the admin, and return it for download.
+router.post("/admin/manual/old-job-offers/:id/download", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid old Job Offer record ID" }); return; }
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_FROM;
+  if (!adminEmail) { res.status(503).json({ error: "Admin email is not configured. Please contact the administrator." }); return; }
+  try {
+    const { rows } = await pool.query(
+      "SELECT reference_number, applicant_name, job_title, location, salary, employer_name, start_date, admin_notes FROM old_job_offers WHERE id = $1",
+      [id]
+    );
+    if (!rows.length) { res.status(404).json({ error: "Old Job Offer record not found" }); return; }
+    const record = rows[0];
+    const pdf = await generateOfferLetterPdf({
+      applicantName: record.applicant_name,
+      jobTitle: record.job_title,
+      location: record.location,
+      salary: record.salary,
+      startDate: record.start_date || undefined,
+      employerName: record.employer_name || "MOLDOVA VISA ASSIST SRL",
+      adminNotes: [record.admin_notes, `Historical reference number: ${record.reference_number}`].filter(Boolean).join("\\n"),
+      referenceNumber: record.reference_number,
+      applicationDate: new Date().toISOString(),
+    });
+    await sendEmail({
+      to: adminEmail,
+      subject: `Historical Job Offer PDF — ${record.applicant_name} — ${record.reference_number}`,
+      html: `<div style="font-family:Arial,sans-serif"><h2>Historical Job Offer PDF Ready</h2><p><strong>Applicant:</strong> ${record.applicant_name}</p><p><strong>Old Reference:</strong> ${record.reference_number}</p><p><strong>Position:</strong> ${record.job_title}</p><p>The Job Offer PDF is attached. Please review it and forward it to the applicant when appropriate.</p></div>`,
+      attachments: [{ filename: `Job_Offer_${record.reference_number}.pdf`, content: pdf, contentType: "application/pdf" }],
+    });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Job_Offer_${record.reference_number}.pdf"`);
+    res.send(pdf);
+  } catch (err) {
+    console.error("Historical Job Offer PDF/email failed", err);
+    res.status(500).json({ error: "Could not create and email the Job Offer PDF to Admin" });
   }
 });
 

@@ -30,6 +30,38 @@ export default function AdminManual() {
     fetch("/api/jobs").then(r => r.ok ? r.json() : []).then(data => setJobs(Array.isArray(data) ? data : []));
   }, [isAdmin]);
 
+  useEffect(() => {
+    if (!isAdmin || !user) return;
+    const oldOfferId = new URLSearchParams(window.location.search).get("oldOfferId");
+    if (!oldOfferId) return;
+    let cancelled = false;
+    fetch(`/api/admin/manual/old-job-offers/${encodeURIComponent(oldOfferId)}`, { headers: authHeaders(user.token) })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not load old Job Offer");
+        if (cancelled) return;
+        const nameParts = String(data.applicant_name || "").trim().split(/\\s+/);
+        setOffer(current => ({
+          ...current,
+          firstName: nameParts.shift() || "",
+          lastName: nameParts.join(" "),
+          availableFrom: data.start_date || "",
+          notes: [`Imported from old Job Offer reference: ${data.reference_number}`, data.admin_notes].filter(Boolean).join("\\n"),
+        }));
+        const match = jobs.find(job =>
+          job.title.trim().toLowerCase() === String(data.job_title || "").trim().toLowerCase() &&
+          job.location.trim().toLowerCase() === String(data.location || "").trim().toLowerCase() &&
+          job.salary.trim().toLowerCase() === String(data.salary || "").trim().toLowerCase()
+        );
+        if (match) setJobId(String(match.id));
+        setMessage(match
+          ? "Old Job Offer information loaded. Complete the missing applicant details and use the existing buttons."
+          : "Old Job Offer information loaded. Select the matching job and complete the missing applicant details.");
+      })
+      .catch(error => { if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load old Job Offer"); });
+    return () => { cancelled = true; };
+  }, [isAdmin, user, jobs]);
+
   if (!isAdmin) return <div className="min-h-screen flex items-center justify-center"><p>Admin access required.</p></div>;
 
   const setOfferField = (key: keyof typeof offer, value: string) => setOffer(v => ({ ...v, [key]: value }));
