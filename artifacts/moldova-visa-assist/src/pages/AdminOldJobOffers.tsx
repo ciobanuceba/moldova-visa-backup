@@ -100,11 +100,11 @@ export default function AdminOldJobOffers() {
           <div className="border-b p-5"><h2 className="font-semibold">Saved Old Job Offers</h2></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
-              <thead><tr className="border-b text-left"><th className="p-3">Reference Number</th><th className="p-3">Applicant</th><th className="p-3">Position</th><th className="p-3">Location</th><th className="p-3">Salary</th><th className="p-3">Employer</th></tr></thead>
+              <thead><tr className="border-b text-left"><th className="p-3">Reference Number</th><th className="p-3">Applicant</th><th className="p-3">Position</th><th className="p-3">Location</th><th className="p-3">Salary</th><th className="p-3">Employer</th><th className="p-3">Action</th></tr></thead>
               <tbody>
-                {loading ? <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">Loading records…</td></tr> :
-                  records.length ? records.map(record => <tr key={record.id} className="border-b last:border-0"><td className="p-3 font-mono text-xs">{record.reference_number}</td><td className="p-3">{record.applicant_name}</td><td className="p-3">{record.job_title}</td><td className="p-3">{record.location}</td><td className="p-3">{record.salary}</td><td className="p-3">{[record.employer_name, record.employer_country].filter(Boolean).join(", ") || "—"}</td></tr>) :
-                  <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No old Job Offer records saved yet.</td></tr>}
+                {loading ? <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Loading records…</td></tr> :
+                  records.length ? records.map(record => <tr key={record.id} className="border-b last:border-0"><td className="p-3 font-mono text-xs">{record.reference_number}</td><td className="p-3">{record.applicant_name}</td><td className="p-3">{record.job_title}</td><td className="p-3">{record.location}</td><td className="p-3">{record.salary}</td><td className="p-3">{[record.employer_name, record.employer_country].filter(Boolean).join(", ") || "—"}</td><td className="p-3"><Button asChild size="sm"><Link href={`/admin/manual?oldOfferId=${record.id}`}>Use in Manual Job Offer</Link></Button></td></tr>) :
+                  <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No old Job Offer records saved yet.</td></tr>}
               </tbody>
             </table>
           </div>
