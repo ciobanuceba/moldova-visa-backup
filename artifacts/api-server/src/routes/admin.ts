@@ -181,7 +181,7 @@ router.patch("/admin/applications/:id/approve", async (req, res): Promise<void> 
     return;
   }
 
-  const { notes } = req.body ?? {};
+  const { notes, employerName } = req.body ?? {};
 
   const client = await pool.connect();
 
@@ -217,6 +217,7 @@ router.patch("/admin/applications/:id/approve", async (req, res): Promise<void> 
         passportNumber: app.passport_number ?? undefined,
 
         adminNotes: notes ?? undefined,
+        employerName: typeof employerName === "string" && employerName.trim() ? employerName.trim() : undefined,
       });
     } catch (err) {
       logger.error(
