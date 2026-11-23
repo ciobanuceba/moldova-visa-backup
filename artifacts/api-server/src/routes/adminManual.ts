@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "crypto";
-import { db, workPermitsTable } from "@workspace/db";
+import { db, pool, workPermitsTable } from "@workspace/db";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { generateOfferLetterPdf } from "../lib/pdf";
 
@@ -14,6 +14,49 @@ function text(value: unknown, fallback = ""): string {
 function manualReference(): string {
   return `MVA-MAN-${new Date().getFullYear()}-${randomBytes(4).toString("hex").toUpperCase()}`;
 }
+
+// Historical Job Offer records are stored separately and never overwrite applications or work permits.
+router.get("/admin/manual/old-job-offers", async (_req, res): Promise<void> => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, reference_number, applicant_name, job_title, location, salary, employer_name, employer_country, start_date, contract_duration, admin_notes, created_at FROM old_job_offers ORDER BY created_at DESC"
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Historical Job Offer list failed", err);
+    res.status(500).json({ error: "Could not load old Job Offer records" });
+  }
+});
+
+router.post("/admin/manual/old-job-offers", async (req, res): Promise<void> => {
+  const body = req.body ?? {};
+  const referenceNumber = text(body.referenceNumber).toUpperCase();
+  const applicantName = text(body.applicantName);
+  const jobTitle = text(body.jobTitle);
+  const location = text(body.location);
+  const salary = text(body.salary);
+  if (!referenceNumber || !applicantName || !jobTitle || !location || !salary) {
+    res.status(400).json({ error: "Reference Number, applicant name, position, location and salary are required" });
+    return;
+  }
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO old_job_offers
+       (reference_number, applicant_name, job_title, location, salary, employer_name, employer_country, start_date, contract_duration, admin_notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       RETURNING id, reference_number, applicant_name, job_title, location, salary, employer_name, employer_country, start_date, contract_duration, admin_notes, created_at`,
+      [referenceNumber, applicantName, jobTitle, location, salary, text(body.employerName) || null, text(body.employerCountry) || null, text(body.startDate) || null, text(body.contractDuration) || null, text(body.adminNotes) || null]
+    );
+    res.status(201).json({ success: true, record: rows[0] });
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      res.status(409).json({ error: "This old Job Offer Reference Number is already saved" });
+      return;
+    }
+    console.error("Historical Job Offer save failed", err);
+    res.status(500).json({ error: "Could not save old Job Offer record" });
+  }
+});
 
 // Manual Job Offer: generates the existing Job Offer PDF only. No existing application is changed.
 router.post("/admin/manual/job-offer", async (req, res): Promise<void> => {
