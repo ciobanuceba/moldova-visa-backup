@@ -20,7 +20,8 @@ export default function AdminOldJobOffers() {
   const [form, setForm] = useState(initialForm);
   const [records, setRecords] = useState<OldOffer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);\n  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
 
   const loadRecords = useCallback(async () => {
