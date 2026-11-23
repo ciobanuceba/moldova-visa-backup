@@ -28,6 +28,22 @@ router.get("/admin/manual/old-job-offers", async (_req, res): Promise<void> => {
   }
 });
 
+router.get("/admin/manual/old-job-offers/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid old Job Offer record ID" }); return; }
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, reference_number, applicant_name, job_title, location, salary, employer_name, employer_country, start_date, contract_duration, admin_notes, created_at FROM old_job_offers WHERE id = $1",
+      [id]
+    );
+    if (!rows.length) { res.status(404).json({ error: "Old Job Offer record not found" }); return; }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Historical Job Offer lookup failed", err);
+    res.status(500).json({ error: "Could not load old Job Offer record" });
+  }
+});
+
 router.post("/admin/manual/old-job-offers", async (req, res): Promise<void> => {
   const body = req.body ?? {};
   const referenceNumber = text(body.referenceNumber).toUpperCase();
