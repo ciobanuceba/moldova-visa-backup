@@ -30,6 +30,20 @@ function fmtDOB(raw: string): string {
   return raw;
 }
 
+function fmtOfferDate(raw?: string): string | undefined {
+  if (!raw?.trim()) return undefined;
+  const value = raw.trim();
+  const match = value.match(/^(\\d{1,2})[.\\/-](\\d{1,2})[.\\/-](\\d{4})$/);
+  if (!match) return value;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return value;
+  const monthName = date.toLocaleString("en-GB", { month: "long", timeZone: "UTC" });
+  return `${String(day).padStart(2, "0")} ${monthName} ${year}`;
+}
+
 function spaced(s: string): string { return s.split("").join(" "); }
 
 export async function generateWorkPermitDecisionPdf(data: WorkPermitDecisionData): Promise<Buffer> {
