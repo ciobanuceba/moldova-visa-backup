@@ -20,7 +20,7 @@ export default function AdminOldJobOffers() {
   const [form, setForm] = useState(initialForm);
   const [records, setRecords] = useState<OldOffer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState(false);\n  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
 
   const loadRecords = useCallback(async () => {
@@ -40,6 +40,30 @@ export default function AdminOldJobOffers() {
 
   function update(key: keyof typeof form, value: string) {
     setForm(current => ({ ...current, [key]: value }));
+  }
+
+  async function downloadOldOffer(record: OldOffer) {
+    if (!user) return;
+    setDownloadingId(record.id); setMessage("");
+    try {
+      const response = await fetch(`/api/admin/manual/old-job-offers/${record.id}/download`, {
+        method: "POST", headers: authHeaders(user.token),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Could not create/email Job Offer PDF");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `Job_Offer_${record.reference_number}.pdf`;
+      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      URL.revokeObjectURL(url);
+      setMessage(`Job Offer PDF created, downloaded, and sent to Admin email for ${record.applicant_name}. Admin can forward it to the applicant.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Job Offer PDF email failed");
+    } finally { setDownloadingId(null); }
   }
 
   async function save(e: React.FormEvent) {
@@ -103,7 +127,7 @@ export default function AdminOldJobOffers() {
               <thead><tr className="border-b text-left"><th className="p-3">Reference Number</th><th className="p-3">Applicant</th><th className="p-3">Position</th><th className="p-3">Location</th><th className="p-3">Salary</th><th className="p-3">Employer</th><th className="p-3">Action</th></tr></thead>
               <tbody>
                 {loading ? <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Loading records…</td></tr> :
-                  records.length ? records.map(record => <tr key={record.id} className="border-b last:border-0"><td className="p-3 font-mono text-xs">{record.reference_number}</td><td className="p-3">{record.applicant_name}</td><td className="p-3">{record.job_title}</td><td className="p-3">{record.location}</td><td className="p-3">{record.salary}</td><td className="p-3">{[record.employer_name, record.employer_country].filter(Boolean).join(", ") || "—"}</td><td className="p-3"><Button asChild size="sm"><Link href={`/admin/manual?oldOfferId=${record.id}`}>Use in Manual Job Offer</Link></Button></td></tr>) :
+                  records.length ? records.map(record => <tr key={record.id} className="border-b last:border-0"><td className="p-3 font-mono text-xs">{record.reference_number}</td><td className="p-3">{record.applicant_name}</td><td className="p-3">{record.job_title}</td><td className="p-3">{record.location}</td><td className="p-3">{record.salary}</td><td className="p-3">{[record.employer_name, record.employer_country].filter(Boolean).join(", ") || "—"}</td><td className="p-3"><div className="flex flex-wrap gap-2"><Button size="sm" disabled={downloadingId !== null} onClick={() => void downloadOldOffer(record)}>{downloadingId === record.id ? "Creating & Emailing…" : "Download"}</Button><Button asChild size="sm" variant="outline"><Link href={`/admin/manual?oldOfferId=${record.id}`}>Use in Manual Job Offer</Link></Button></div></td></tr>) :
                   <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No old Job Offer records saved yet.</td></tr>}
               </tbody>
             </table>
