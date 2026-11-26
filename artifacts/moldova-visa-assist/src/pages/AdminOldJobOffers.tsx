@@ -97,8 +97,8 @@ export default function AdminOldJobOffers() {
     if (!user) return;
     setSaving(true); setMessage("");
     try {
-      const res = await fetch("/api/admin/manual/old-job-offers", {
-        method: "POST",
+      const res = await fetch(editingId !== null ? `/api/admin/manual/old-job-offers/${editingId}` : "/api/admin/manual/old-job-offers", {
+        method: editingId !== null ? "PUT" : "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(user.token) },
         body: JSON.stringify(form),
       });
