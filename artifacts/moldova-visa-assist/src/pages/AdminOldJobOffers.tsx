@@ -23,6 +23,7 @@ export default function AdminOldJobOffers() {
   const [saving, setSaving] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const loadRecords = useCallback(async () => {
     if (!user) return;
@@ -38,6 +39,30 @@ export default function AdminOldJobOffers() {
   }, [user]);
 
   useEffect(() => { if (isAdmin) void loadRecords(); }, [isAdmin, loadRecords]);
+
+  function startEdit(record: OldOffer) {
+    setEditingId(record.id);
+    setForm({
+      referenceNumber: record.reference_number,
+      applicantName: record.applicant_name,
+      jobTitle: record.job_title,
+      location: record.location,
+      salary: record.salary,
+      employerName: record.employer_name || "",
+      employerCountry: record.employer_country || "",
+      startDate: record.start_date || "",
+      contractDuration: record.contract_duration || "",
+      adminNotes: record.admin_notes || "",
+    });
+    setMessage(`Editing ${record.reference_number}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(initialForm);
+    setMessage("Edit cancelled.");
+  }
 
   function update(key: keyof typeof form, value: string) {
     setForm(current => ({ ...current, [key]: value }));
@@ -113,12 +138,12 @@ export default function AdminOldJobOffers() {
         </div>
         {message && <div role="status" className="rounded-lg border bg-card p-3 text-sm">{message}</div>}
         <section className="rounded-xl border bg-card p-5 sm:p-6">
-          <h2 className="mb-1 text-lg font-semibold">Add Previous Job Offer</h2>
+          <h2 className="mb-1 text-lg font-semibold">{editingId ? "Edit Previous Job Offer" : "Add Previous Job Offer"}</h2>
           <p className="mb-4 text-sm text-muted-foreground">Enter the old reference number and details. PDF upload is not required.</p>
           <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
             {fields.map(([key, label, required]) => <Input key={key} required={Boolean(required)} placeholder={label} value={form[key]} onChange={e => update(key, e.target.value)} />)}
             <Textarea className="sm:col-span-2" placeholder="Admin notes (optional)" value={form.adminNotes} onChange={e => update("adminNotes", e.target.value)} />
-            <Button type="submit" disabled={saving} className="sm:col-span-2">{saving ? "Saving…" : "Save Old Job Offer Record"}</Button>
+            <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={saving}>{saving ? "Saving…" : editingId ? "Update Old Job Offer" : "Save Old Job Offer Record"}</Button>{editingId !== null && <Button type="button" variant="outline" onClick={cancelEdit}>Cancel Edit</Button>}</div>
           </form>
         </section>
         <section className="overflow-hidden rounded-xl border bg-card">
@@ -128,7 +153,7 @@ export default function AdminOldJobOffers() {
               <thead><tr className="border-b text-left"><th className="p-3">Reference Number</th><th className="p-3">Applicant</th><th className="p-3">Position</th><th className="p-3">Location</th><th className="p-3">Salary</th><th className="p-3">Employer</th><th className="p-3">Action</th></tr></thead>
               <tbody>
                 {loading ? <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Loading records…</td></tr> :
-                  records.length ? records.map(record => <tr key={record.id} className="border-b last:border-0"><td className="p-3 font-mono text-xs">{record.reference_number}</td><td className="p-3">{record.applicant_name}</td><td className="p-3">{record.job_title}</td><td className="p-3">{record.location}</td><td className="p-3">{record.salary}</td><td className="p-3">{[record.employer_name, record.employer_country].filter(Boolean).join(", ") || "—"}</td><td className="p-3"><div className="flex flex-wrap gap-2"><Button size="sm" disabled={downloadingId !== null} onClick={() => void downloadOldOffer(record)}>{downloadingId === record.id ? "Creating & Emailing…" : "Download"}</Button><Button asChild size="sm" variant="outline"><Link href={`/admin/manual?oldOfferId=${record.id}`}>Use in Manual Job Offer</Link></Button></div></td></tr>) :
+                  records.length ? records.map(record => <tr key={record.id} className="border-b last:border-0"><td className="p-3 font-mono text-xs">{record.reference_number}</td><td className="p-3">{record.applicant_name}</td><td className="p-3">{record.job_title}</td><td className="p-3">{record.location}</td><td className="p-3">{record.salary}</td><td className="p-3">{[record.employer_name, record.employer_country].filter(Boolean).join(", ") || "—"}</td><td className="p-3"><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => startEdit(record)}>Edit</Button><Button size="sm" disabled={downloadingId !== null} onClick={() => void downloadOldOffer(record)}>{downloadingId === record.id ? "Creating & Emailing…" : "Download"}</Button><Button asChild size="sm" variant="outline"><Link href={`/admin/manual?oldOfferId=${record.id}`}>Use in Manual Job Offer</Link></Button></div></td></tr>) :
                   <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No old Job Offer records saved yet.</td></tr>}
               </tbody>
             </table>
