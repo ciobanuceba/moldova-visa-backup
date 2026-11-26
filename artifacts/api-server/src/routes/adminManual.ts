@@ -84,6 +84,40 @@ router.post("/admin/manual/old-job-offers/:id/download", async (req, res): Promi
   }
 });
 
+router.put("/admin/manual/old-job-offers/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid old Job Offer record ID" }); return; }
+  const body = req.body ?? {};
+  const referenceNumber = text(body.referenceNumber).toUpperCase();
+  const applicantName = text(body.applicantName);
+  const jobTitle = text(body.jobTitle);
+  const location = text(body.location);
+  const salary = text(body.salary);
+  if (!referenceNumber || !applicantName || !jobTitle || !location || !salary) {
+    res.status(400).json({ error: "Reference Number, applicant name, position, location and salary are required" });
+    return;
+  }
+  try {
+    const { rows } = await pool.query(
+      `UPDATE old_job_offers SET
+       reference_number = $1, applicant_name = $2, job_title = $3, location = $4, salary = $5,
+       employer_name = $6, employer_country = $7, start_date = $8, contract_duration = $9, admin_notes = $10
+       WHERE id = $11
+       RETURNING id, reference_number, applicant_name, job_title, location, salary, employer_name, employer_country, start_date, contract_duration, admin_notes, created_at`,
+      [referenceNumber, applicantName, jobTitle, location, salary, text(body.employerName) || null, text(body.employerCountry) || null, text(body.startDate) || null, text(body.contractDuration) || null, text(body.adminNotes) || null, id]
+    );
+    if (!rows.length) { res.status(404).json({ error: "Old Job Offer record not found" }); return; }
+    res.json({ success: true, record: rows[0] });
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      res.status(409).json({ error: "This old Job Offer Reference Number is already saved" });
+      return;
+    }
+    console.error("Historical Job Offer update failed", err);
+    res.status(500).json({ error: "Could not update old Job Offer record" });
+  }
+});
+
 router.post("/admin/manual/old-job-offers", async (req, res): Promise<void> => {
   const body = req.body ?? {};
   const referenceNumber = text(body.referenceNumber).toUpperCase();
